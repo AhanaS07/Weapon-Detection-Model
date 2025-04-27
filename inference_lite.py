@@ -23,15 +23,13 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import json  # For reading configuration file
 
-# Configure TensorFlow to use GPU memory efficiently on Jetson Nano
-physical_devices = tf.config.list_physical_devices('GPU')
-if physical_devices:
-    try:
-        for device in physical_devices:
-            tf.config.experimental.set_memory_growth(device, True)
-        print("GPU memory growth enabled")
-    except Exception as e:
-        print(f"Error configuring GPU: {e}")
+# Print TensorFlow version for debugging
+print("TensorFlow version:", tf.__version__)
+
+# Configure TensorFlow 1.15 to use GPU memory efficiently on Jetson Nano
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+session = tf.Session(config=config)
 
 # Load TFLite model and allocate tensors
 model_path = "../models/tflite_model/model.tflite"
@@ -39,6 +37,7 @@ if not os.path.exists(model_path):
     print(f"Error: Model file not found at {model_path}")
     exit(1)
 
+# In TF 1.15, the Interpreter is in tf.lite
 interpreter = tf.lite.Interpreter(model_path=model_path)
 print("Model loaded successfully")
 
@@ -118,9 +117,13 @@ frame_count = 0
 skip_frames = 2  # Process every 3rd frame (0, 3, 6, etc.)
 
 # Get input and output tensors
+interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
-interpreter.allocate_tensors()
+
+# Debug tensor information
+print("Input tensor details:", input_details)
+print("Output tensor details:", output_details)
 
 def send_email_thread(image):
     thread = threading.Thread(target=send_email, args=(image,))
@@ -191,6 +194,7 @@ cv2.resizeWindow("ALERT", 800, 200)
 
 # Infinite loop to receive frames(images) from camera source
 try:
+    print("Starting detection loop. Press 'q' to quit.")
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -233,48 +237,109 @@ try:
         
         # Resize to 16:9 aspect ratio (640x360) for inference
         start_time = time.time()
-        resized_img = cv2.resize(frame, (640, 360))
+        
+        # Check expected input shape from model details
+        input_shape = input_details[0]['shape']
+        print(f"Expected input shape: {input_shape}") if frame_count == 3 else None
+        
+        # Resize frame to match expected input shape
+        # This reshapes to the expected input dimensions of the model (adjust if needed)
+        if len(input_shape) == 4:  # [batch, height, width, channels]
+            height, width = input_shape[1], input_shape[2]
+            resized_img = cv2.resize(frame, (width, height))
+            
+            # Convert image to expected format (usually float32 and normalized)
+            input_data_type = input_details[0]['dtype']
+            if input_data_type == np.float32:
+                # Normalize image (assuming 0-1 normalization)
+                resized_img = resized_img.astype(np.float32) / 255.0
+            
+            # Add batch dimension
+            input_data = np.expand_dims(resized_img, axis=0)
+        else:
+            # Fallback to original resize if model input shape is unexpected
+            resized_img = cv2.resize(frame, (640, 360))
+            input_data = np.expand_dims(resized_img, axis=0)
         
         # Prepare input tensor
-        interpreter.set_tensor(input_details[0]['index'], [resized_img])
+        interpreter.set_tensor(input_details[0]['index'], input_data)
         
         # Run inference
         interpreter.invoke()
         
-        # Get results
-        rects = interpreter.get_tensor(output_details[0]['index'])
-        classes = interpreter.get_tensor(output_details[1]['index'])
-        scores = interpreter.get_tensor(output_details[2]['index'])
-        detections = interpreter.get_tensor(output_details[3]['index'])
+        # Get results - these may need adjustment based on your model's actual output format
+        # Using try/except to handle possible differences in output format
+        try:
+            # Attempt to get outputs as in original code
+            rects = interpreter.get_tensor(output_details[0]['index'])
+            classes = interpreter.get_tensor(output_details[1]['index'])
+            scores = interpreter.get_tensor(output_details[2]['index'])
+            
+            # TF 1.15 might return detections differently
+            if len(output_details) >= 4:
+                detections = interpreter.get_tensor(output_details[3]['index'])
+                num_detections = int(detections[0])
+            else:
+                # If no separate detections tensor, use the number of valid scores
+                num_detections = len([s for s in scores[0] if s > 0.01])
+        except Exception as e:
+            print(f"Error getting detection results: {e}")
+            print("Output details structure:")
+            for i, output in enumerate(output_details):
+                tensor = interpreter.get_tensor(output['index'])
+                print(f"Output {i}: shape={tensor.shape}, type={tensor.dtype}")
+                if i == 0:
+                    print(f"First few values: {tensor.flatten()[:5]}")
+            
+            # Skip this frame
+            continue
         
         # Create copy for display
         display_frame = frame.copy()
         
         # Process detections
         weapon_detected = False
-        for i in range(int(detections[0])):
+        for i in range(num_detections):
             # Using 75% detection threshold
             if scores[0][i] * 100 > 75:
                 weapon_detected = True
                 per_box = rects[0][i]
-                class_name = object_map[int(classes[0][i])]
+                class_index = int(classes[0][i])
+                
+                # Check class index is valid
+                if class_index < len(object_map):
+                    class_name = object_map[class_index]
+                else:
+                    class_name = f"Unknown ({class_index})"
+                    
                 confidence = scores[0][i] * 100
                 
                 print(f"Detected {class_name} with {confidence:.2f}% confidence")
                 
                 # Convert coordinates from the resized image back to original
-                y1 = int(per_box[0] * 360 * (frame.shape[0] / 360))
-                x1 = int(per_box[1] * 640 * (frame.shape[1] / 640))
-                y2 = int(per_box[2] * 360 * (frame.shape[0] / 360))
-                x2 = int(per_box[3] * 640 * (frame.shape[1] / 640))
+                # This might need adjustment based on your model's coordinate format
+                input_height, input_width = input_shape[1], input_shape[2]
                 
-                # Draw bounding box
-                cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                
-                # Add label
-                label = f"{class_name}: {confidence:.2f}%"
-                cv2.putText(display_frame, label, (x1, y1-10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                try:
+                    # Different models might output coordinates in different formats
+                    # Typical formats: [y1, x1, y2, x2] or [x1, y1, x2, y2] normalized from 0-1
+                    
+                    # Assuming [y1, x1, y2, x2] format normalized from 0-1
+                    y1 = int(per_box[0] * frame.shape[0])
+                    x1 = int(per_box[1] * frame.shape[1])
+                    y2 = int(per_box[2] * frame.shape[0])
+                    x2 = int(per_box[3] * frame.shape[1])
+                    
+                    # Draw bounding box
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                    
+                    # Add label
+                    label = f"{class_name}: {confidence:.2f}%"
+                    cv2.putText(display_frame, label, (x1, y1-10), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                except Exception as e:
+                    print(f"Error drawing bounding box: {e}")
+                    print(f"Box coordinates: {per_box}")
                 
                 # Set alert for 10 seconds
                 current_time = time.time()
@@ -329,4 +394,7 @@ finally:
     # Clean up
     cap.release()
     cv2.destroyAllWindows()
+    # Clean up TF session if needed
+    if 'session' in locals():
+        session.close()
     print("Application terminated")
