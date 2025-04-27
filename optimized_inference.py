@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Optimized inference script for weapon detection with visual alerts
-
-@author: ahana
+Adaptive inference script for weapon detection with TensorRT support
 """
 import cv2
 import time
@@ -25,9 +23,11 @@ standard_model_path = os.path.join(base_model_path, "saved_model")  # Original m
 if os.path.exists(tensorrt_model_path):
     model_path = tensorrt_model_path
     print(f"Using TensorRT optimized model: {model_path}")
+    use_tensorrt = True
 else:
     model_path = standard_model_path
     print(f"Using standard model: {model_path}")
+    use_tensorrt = False
 
 if not os.path.exists(model_path):
     print(f"Model not found at {model_path}")
@@ -85,28 +85,102 @@ class CVPopupAlert(threading.Thread):
         
         print(f"OpenCV popup alert displayed for: {self.detect_obj}")
         
-        # Wait for key press or timeout (10 seconds)
+        # Wait for key press or timeout
         cv2.waitKey(5000)  # Reduced from 10000 to 5000 ms
         cv2.destroyWindow(window_name)
+
+def get_available_operations(session):
+    """Get all available operations in the graph"""
+    operations = []
+    for op in session.graph.get_operations():
+        operations.append(op.name)
+    return operations
+
+def find_tensor_names(session):
+    """Find the appropriate tensor names for detection in the model"""
+    # Default tensor names in the standard model
+    default_names = {
+        'input': 'encoded_image_string_tensor:0',
+        'num_detections': 'num_detections:0',
+        'detection_scores': 'detection_scores:0',
+        'detection_boxes': 'detection_boxes:0',
+        'detection_classes': 'detection_classes:0'
+    }
+    
+    # Get all operations in the graph
+    operations = get_available_operations(session)
+    print("Available operations:", operations[:20])  # Print first 20 for debugging
+    
+    # TensorRT often adds prefixes to tensor names or changes them
+    # Look for tensor names containing key detection terms
+    found_names = {}
+    
+    # Search for input tensor
+    input_candidates = [op for op in operations if 'input' in op.lower() or 'image' in op.lower() or 'encoded' in op.lower()]
+    if input_candidates:
+        print("Input tensor candidates:", input_candidates)
+        found_names['input'] = input_candidates[0] + ':0'
+    else:
+        found_names['input'] = default_names['input']
+    
+    # Search for detection tensors
+    detected_outputs = []
+    for op in operations:
+        if 'detection' in op.lower() or 'predict' in op.lower():
+            detected_outputs.append(op)
+    
+    # Associate detected tensors with the required outputs
+    detection_mapping = {
+        'num_detections': ['num_detect', 'detection_count', 'count'],
+        'detection_scores': ['score', 'confidence'],
+        'detection_boxes': ['box', 'bbox', 'bound'],
+        'detection_classes': ['class', 'label']
+    }
+    
+    # For each required output, find a matching tensor
+    for output_name, search_terms in detection_mapping.items():
+        candidates = []
+        for op in detected_outputs:
+            if any(term in op.lower() for term in search_terms):
+                candidates.append(op)
+        
+        if candidates:
+            found_names[output_name] = candidates[0] + ':0'
+        else:
+            # Try common TensorRT output patterns
+            trt_candidates = [op for op in operations if output_name.replace('_', '') in op.lower()]
+            if trt_candidates:
+                found_names[output_name] = trt_candidates[0] + ':0'
+            else:
+                # Fallback to default
+                found_names[output_name] = default_names[output_name]
+    
+    print("Using the following tensor names:")
+    for key, value in found_names.items():
+        print(f"  {key}: {value}")
+    
+    return found_names
 
 def main():
     global detect_timer
    
-    print("Starting optimized weapon detection system...")
+    print("Starting adaptive weapon detection system...")
     
-    # Configure TensorFlow for better performance on Jetson Nano
+    # Configure TensorFlow for better performance
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-    
-    # Reduce precision to 16-bit (FP16) - faster on Jetson platforms
-    config.graph_options.rewrite_options.auto_mixed_precision = 1
-    
+    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+   
     # Build TF graph and load model into session for inference
     try:
         print(f"Loading model from {model_path}")
         session = tf.Session(graph=tf.Graph(), config=config)
         tf.saved_model.loader.load(session, ['serve'], model_path)
         print("Model loaded successfully")
+        
+        # Find the correct tensor names for the loaded model
+        tensor_names = find_tensor_names(session)
+        
     except Exception as e:
         print(f"Error loading model: {e}")
         return
@@ -174,7 +248,7 @@ def main():
             start_time = time.time()
             
             # Use an even smaller resolution for inference (320x180)
-            image_resized = cv2.resize(image, (320, 180), cv2.INTER_AREA)  # INTER_AREA is better for downsampling
+            image_resized = cv2.resize(image, (320, 180), cv2.INTER_AREA)
            
             # Convert image to bytes for TensorFlow input
             # Use lower JPEG quality (80 instead of default 95) for faster encoding
@@ -183,13 +257,40 @@ def main():
            
             # Pass the input image and obtain the inferred outputs from the tensor
             try:
-                detection, scores, boxes, classes = session.run(
-                    ['num_detections:0', 'detection_scores:0', 'detection_boxes:0', 'detection_classes:0'],
-                    feed_dict={'encoded_image_string_tensor:0': [image_bytes]}
+                feed_dict = {tensor_names['input']: [image_bytes]}
+                outputs = session.run(
+                    [tensor_names['num_detections'], 
+                     tensor_names['detection_scores'], 
+                     tensor_names['detection_boxes'], 
+                     tensor_names['detection_classes']],
+                    feed_dict=feed_dict
                 )
+                detection, scores, boxes, classes = outputs
+                
             except Exception as e:
                 print(f"Error during inference: {e}")
-                continue
+                print("Detailed error information:")
+                print(f"Tensor names being used: {tensor_names}")
+                print("Try running the model in non-TensorRT mode by using standard_model_path")
+                
+                # Fall back to standard model if TensorRT fails
+                if use_tensorrt:
+                    print("Falling back to standard model...")
+                    model_path = standard_model_path
+                    print(f"Loading standard model from {model_path}")
+                    
+                    # Release current session and create a new one
+                    session.close()
+                    session = tf.Session(graph=tf.Graph(), config=config)
+                    tf.saved_model.loader.load(session, ['serve'], model_path)
+                    
+                    # Get tensor names for standard model
+                    tensor_names = find_tensor_names(session)
+                    use_tensorrt = False
+                    continue
+                else:
+                    print("Error with standard model. Check tensor names or model integrity.")
+                    continue
            
             # Create a smaller display image
             height, width, ch = image.shape
@@ -243,7 +344,7 @@ def main():
                         
                         # Create a popup window with the detection image (in a thread)
                         popup_thread = CVPopupAlert(object_name, score_percent, image)
-                        popup_thread.daemon = True  # Make thread daemonic so it doesn't block program exit
+                        popup_thread.daemon = True  # Make thread daemonic
                         popup_thread.start()
                         print(f"OpenCV popup alert triggered for {object_name}")
                         
