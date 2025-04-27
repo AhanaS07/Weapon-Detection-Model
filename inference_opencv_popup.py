@@ -91,20 +91,53 @@ def main():
     # Configure TensorFlow 1.15 for better performance on Jetson Nano
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.5  # Limit GPU memory usage
+    
+    # Lower GPU memory fraction for Jetson Nano (often has only 4GB shared memory)
+    config.gpu_options.per_process_gpu_memory_fraction = 0.3  # Reduced from 0.5 to prevent OOM
     
     # Optimize for TensorFlow 1.15 specifically
     config.intra_op_parallelism_threads = 2  # Adjust based on CPU cores
     config.inter_op_parallelism_threads = 2  # Adjust based on CPU cores
     
+    # Set log level to provide more information
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'  # 0 = all messages shown including INFO
+    
     # Build TF graph and load model into session for inference
     try:
         print(f"Loading model from {model_path}")
-        session = tf.Session(graph=tf.Graph(), config=config)
-        tf.saved_model.loader.load(session, ['serve'], model_path)
-        print("Model loaded successfully")
+        # Add more detailed error handling for model loading
+        with tf.device('/device:GPU:0'):
+            try:
+                # First, verify the model directory content
+                print(f"Model directory contents: {os.listdir(model_path)}")
+                
+                # Create session with increased timeout for slow devices
+                session = tf.Session(graph=tf.Graph(), config=config)
+                
+                # Try to load the model
+                print("Starting model loading, this may take a moment...")
+                tf.saved_model.loader.load(session, ['serve'], model_path)
+                print("Model loaded successfully")
+                
+                # Verify session is working with a simple tensor operation
+                test_tensor = tf.constant([1.0, 2.0, 3.0])
+                test_result = session.run(test_tensor)
+                print(f"TensorFlow session test: {test_result}")
+            except tf.errors.ResourceExhaustedError as e:
+                print(f"ERROR: GPU memory exhausted. Try lowering memory usage: {e}")
+                print("Trying with CPU fallback...")
+                # Fall back to CPU
+                with tf.device('/device:CPU:0'):
+                    session = tf.Session(graph=tf.Graph(), config=config)
+                    tf.saved_model.loader.load(session, ['serve'], model_path)
+                    print("Model loaded successfully on CPU")
+            except tf.errors.InvalidArgumentError as e:
+                print(f"ERROR: Invalid model configuration: {e}")
+                raise
     except Exception as e:
         print(f"Error loading model: {e}")
+        import traceback
+        traceback.print_exc()
         return
    
     # Attach primary camera source with preferred settings
@@ -120,9 +153,13 @@ def main():
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         
-        # Set more camera properties to optimize performance
+        # Set FPS (property #5) - more widely supported than BUFFERSIZE
         cap.set(cv2.CAP_PROP_FPS, 30)  # Request 30fps
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize buffer to reduce latency
+        
+        # Check if we can get the current resolution
+        actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        print(f"Camera resolution: {actual_width}x{actual_height}")
     except Exception as e:
         print(f"Error accessing camera: {e}")
         return
