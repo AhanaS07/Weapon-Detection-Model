@@ -30,10 +30,10 @@ if not os.path.exists(model_path):
     exit(1)
 
 # Email configuration
-sender_email = "nanojetson40@gmail.com"  # Your Gmail address
-receiver_email = "vihanmurthy@gmail.com"  # Recipient email
-mass_email = "1ds22cb007@dsce.edu.in" 
-app_password = "oqju vyom chdw xvaq"  # 16-character App Password
+sender_email = "xyz@gmail.com"  # Your Gmail address
+receiver_email = "abc@gmail.com"  # Recipient email
+mass_email = "def@gmail.com" 
+app_password = "xxxx xxxx xxxx xxxx"  # 16-character App Password
 notification_interval = 10  # Seconds between email notifications
 
 # disabling TF version 2 behaviour
