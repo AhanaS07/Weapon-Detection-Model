@@ -32,6 +32,7 @@ if not os.path.exists(model_path):
 # Email configuration
 sender_email = "nanojetson40@gmail.com"  # Your Gmail address
 receiver_email = "vihanmurthy@gmail.com"  # Recipient email
+mass_email = "1ds22cb007@dsce.edu.in" 
 app_password = "oqju vyom chdw xvaq"  # 16-character App Password
 notification_interval = 10  # Seconds between email notifications
 
@@ -98,7 +99,7 @@ class Email(threading.Thread):
         except Exception as e:
             print(f"Error sending email: {e}")
 
-ef main():
+def main():
     global detect_timer
    
     print("Starting weapon detection system...")
