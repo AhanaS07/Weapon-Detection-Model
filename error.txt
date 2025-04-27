@@ -4,3 +4,7 @@ Traceback (most recent call last):
   File "tensorrt.py", line 47, in convert_to_tensorrt
     converter = trt.TrtGraphConverter(
 AttributeError: module 'tensorflow.contrib.tensorrt' has no attribute 'TrtGraphConverter'
+
+Corrected
+
+Error during inference: Fetch argument 'num_detections:0' cannot be interpreted as a Tensor. ("The name 'num_detections:0' refers to a Tensor which does not exist. The operation, 'num_detections', does not exist in the graph.")
