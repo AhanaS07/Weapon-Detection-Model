@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "tensorrt.py", line 85, in <module>
+    optimized_model_path = convert_to_tensorrt(model_path, precision="FP16")
+  File "tensorrt.py", line 47, in convert_to_tensorrt
+    converter = trt.TrtGraphConverter(
+AttributeError: module 'tensorflow.contrib.tensorrt' has no attribute 'TrtGraphConverter'
