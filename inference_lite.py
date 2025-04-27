@@ -49,8 +49,8 @@ config_file = os.path.join(config_dir, "email_config.json")
 
 # Default email configuration
 email_config = {
-    "sender_email": "jetsondetector@gmail.com",
-    "receiver_email": "vihanmurthy@gmail.com",
+    "sender_email": "abc@gmail.com",
+    "receiver_email": "def@gmail.com",
     "app_password": "",  # Empty by default, must be configured
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 465
