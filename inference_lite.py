@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Enhanced Weapon Detection System for Nvidia Jetson Nano
-Created on Fri Dec  4 02:44:25 2020
-Modified on Sun Apr 27 2025
 
-@author: vihan, with improvements by [Your Name]
+@author: ahana
 """
 # Import packages for Tensorflow, OpenCV, and threading
 import cv2
@@ -53,8 +51,8 @@ config_file = os.path.join(config_dir, "email_config.json")
 
 # Default email configuration
 email_config = {
-    "sender_email": "jetsondetector@gmail.com",
-    "receiver_email": "vihanmurthy@gmail.com",
+    "sender_email": "abc@gmail.com",
+    "receiver_email": "def@gmail.com",
     "app_password": "",  # Empty by default, must be configured
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 465
