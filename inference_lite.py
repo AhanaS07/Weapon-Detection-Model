@@ -10,10 +10,15 @@ Modified on Sun Apr 27 2025
 # Import packages for Tensorflow, OpenCV, and threading
 import cv2
 import time
-import tensorflow as tf
 import threading
 import numpy as np
 import os
+
+# Import TensorFlow for GPU configuration only
+import tensorflow as tf
+
+# Import the standalone TFLite runtime
+import tflite_runtime.interpreter as tflite
 
 # Import packages for email notifications
 import email, smtplib, ssl
@@ -37,8 +42,8 @@ if not os.path.exists(model_path):
     print(f"Error: Model file not found at {model_path}")
     exit(1)
 
-# In TF 1.15, the Interpreter is in tf.lite
-interpreter = tf.lite.Interpreter(model_path=model_path)
+# Use the standalone TFLite runtime interpreter instead of tf.lite
+interpreter = tflite.Interpreter(model_path=model_path)
 print("Model loaded successfully")
 
 # Email Configuration
@@ -48,8 +53,8 @@ config_file = os.path.join(config_dir, "email_config.json")
 
 # Default email configuration
 email_config = {
-    "sender_email": "abc@gmail.com",
-    "receiver_email": "def@gmail.com",
+    "sender_email": "jetsondetector@gmail.com",
+    "receiver_email": "vihanmurthy@gmail.com",
     "app_password": "",  # Empty by default, must be configured
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 465
