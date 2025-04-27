@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Adaptive inference script for weapon detection with TensorRT support
+Fixed adaptive inference script for weapon detection with TensorRT support
 """
 import cv2
 import time
@@ -14,25 +14,34 @@ import numpy as np
 detect_timer = 0
 object_map = ["knife", "gun"]
 
-# Use TensorRT optimized model if available
+# Define model paths outside of any function scope
 base_model_path = os.path.expanduser("~/models/research/weapon_detection/models")
 tensorrt_model_path = os.path.join(base_model_path, "trt_fp16")  # TensorRT FP16 model
 standard_model_path = os.path.join(base_model_path, "saved_model")  # Original model
 
-# Try to use TensorRT model first, fall back to standard model
-if os.path.exists(tensorrt_model_path):
-    model_path = tensorrt_model_path
-    print(f"Using TensorRT optimized model: {model_path}")
-    use_tensorrt = True
-else:
-    model_path = standard_model_path
-    print(f"Using standard model: {model_path}")
-    use_tensorrt = False
+# Global variable to track if we're using TensorRT
+use_tensorrt = False
 
-if not os.path.exists(model_path):
-    print(f"Model not found at {model_path}")
-    print("Please update model_path variable")
-    exit(1)
+# Determine which model to use
+def select_model_path():
+    global use_tensorrt
+    
+    # Try to use TensorRT model first, fall back to standard model
+    if os.path.exists(tensorrt_model_path):
+        selected_path = tensorrt_model_path
+        print(f"Using TensorRT optimized model: {selected_path}")
+        use_tensorrt = True
+    else:
+        selected_path = standard_model_path
+        print(f"Using standard model: {selected_path}")
+        use_tensorrt = False
+
+    if not os.path.exists(selected_path):
+        print(f"Model not found at {selected_path}")
+        print("Please update model_path variable")
+        return None
+        
+    return selected_path
 
 # Alert configuration
 notification_interval = 10  # Seconds between notifications
@@ -162,9 +171,15 @@ def find_tensor_names(session):
     return found_names
 
 def main():
-    global detect_timer
+    global detect_timer, use_tensorrt
    
     print("Starting adaptive weapon detection system...")
+    
+    # Select the model path
+    model_path = select_model_path()
+    if model_path is None:
+        print("No valid model path found. Exiting.")
+        return
     
     # Configure TensorFlow for better performance
     config = tf.ConfigProto()
@@ -271,7 +286,6 @@ def main():
                 print(f"Error during inference: {e}")
                 print("Detailed error information:")
                 print(f"Tensor names being used: {tensor_names}")
-                print("Try running the model in non-TensorRT mode by using standard_model_path")
                 
                 # Fall back to standard model if TensorRT fails
                 if use_tensorrt:
