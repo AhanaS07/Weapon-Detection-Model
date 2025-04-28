@@ -111,3 +111,33 @@ Used direct access from python itself
 2025-04-28 12:54:08.576438: I tensorflow/core/common_runtime/gpu/gpu_process_state.cc:145] Using CUDA malloc Async allocator for GPU: 0
 2025-04-28 12:54:08.576482: F tensorflow/core/common_runtime/gpu/gpu_cudamallocasync_allocator.cc:206] GpuCudaMallocAsyncAllocator requires CUDA 11.2+
 Aborted (core dumped)
+
+Maximised core and clocks manually
+
+ERROR loading model on CPU: Fetch argument <tf.Tensor 'Const:0' shape=(3,) dtype=float32> cannot be interpreted as a Tensor. (Tensor Tensor("Const:0", shape=(3,), dtype=float32, device=/device:CPU:0) is not an element of this graph.)
+Error loading model: Fetch argument <tf.Tensor 'Const:0' shape=(3,) dtype=float32> cannot be interpreted as a Tensor. (Tensor Tensor("Const:0", shape=(3,), dtype=float32, device=/device:CPU:0) is not an element of this graph.)
+Traceback (most recent call last):
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/client/session.py", line 305, in __init__
+    fetch, allow_tensor=True, allow_operation=True))
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3607, in as_graph_element
+    return self._as_graph_element_locked(obj, allow_tensor, allow_operation)
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/framework/ops.py", line 3686, in _as_graph_element_locked
+    raise ValueError("Tensor %s is not an element of this graph." % obj)
+ValueError: Tensor Tensor("Const:0", shape=(3,), dtype=float32, device=/device:CPU:0) is not an element of this graph.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "inference_v4l2.py", line 125, in main
+    test_result = session.run(test_tensor)
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/client/session.py", line 956, in run
+    run_metadata_ptr)
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/client/session.py", line 1165, in _run
+    self._graph, fetches, feed_dict_tensor, feed_handles=feed_handles)
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/client/session.py", line 474, in __init__
+    self._fetch_mapper = _FetchMapper.for_fetch(fetches)
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/client/session.py", line 276, in for_fetch
+    return _ElementFetchMapper(fetches, contraction_fn)
+  File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/client/session.py", line 312, in __init__
+    'Tensor. (%s)' % (fetch, str(e)))
+ValueError: Fetch argument <tf.Tensor 'Const:0' shape=(3,) dtype=float32> cannot be interpreted as a Tensor. (Tensor Tensor("Const:0", shape=(3,), dtype=float32, device=/device:CPU:0) is not an element of this graph.)
