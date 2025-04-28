@@ -90,3 +90,24 @@ Building wheels for collected packages: v4l2capture
   ----------------------------------------
   ERROR: Failed building wheel for v4l2capture
 
+Used direct access from python itself 
+
+2025-04-28 12:54:00.057801: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudart.so.10.2
+2025-04-28 12:54:00.297578: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcublas.so.10
+2025-04-28 12:54:00.380854: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcufft.so.10
+2025-04-28 12:54:00.491205: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcurand.so.10
+2025-04-28 12:54:00.634248: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcusolver.so.10
+2025-04-28 12:54:00.719627: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcusparse.so.10
+2025-04-28 12:54:00.724030: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudnn.so.8
+2025-04-28 12:54:00.724702: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-04-28 12:54:00.725323: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-04-28 12:54:00.725483: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1794] Adding visible gpu devices: 0
+2025-04-28 12:54:00.725847: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudart.so.10.2
+2025-04-28 12:54:08.574091: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1206] Device interconnect StreamExecutor with strength 1 edge matrix:
+2025-04-28 12:54:08.574248: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1212]      0 
+2025-04-28 12:54:08.574301: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1225] 0:   N 
+2025-04-28 12:54:08.575843: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-04-28 12:54:08.576273: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-04-28 12:54:08.576438: I tensorflow/core/common_runtime/gpu/gpu_process_state.cc:145] Using CUDA malloc Async allocator for GPU: 0
+2025-04-28 12:54:08.576482: F tensorflow/core/common_runtime/gpu/gpu_cudamallocasync_allocator.cc:206] GpuCudaMallocAsyncAllocator requires CUDA 11.2+
+Aborted (core dumped)
