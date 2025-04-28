@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Optimized inference script for weapon detection with visual alerts
-Specifically optimized for TensorFlow 1.15 on Jetson Nano
+Specifically optimized for TensorFlow 1.15 on Jetson Nano with Zebronics ZEB-Ultimate Pro
 
 @author: ahana
 """
@@ -30,7 +30,7 @@ print(f"Using standard TensorFlow 1.15 model: {model_path}")
 
 # Alert configuration
 notification_interval = 10  # Seconds between notifications
-skip_frames = 4  # Process every 4th frame to reduce CPU load
+skip_frames = 5  # Process every 5th frame to reduce CPU load (increased from 4)
 
 # Disabling TF version 2 behavior
 tf.disable_v2_behavior()
@@ -80,7 +80,7 @@ class CVPopupAlert(threading.Thread):
         print(f"OpenCV popup alert displayed for: {self.detect_obj}")
         
         # Wait for key press or timeout (5 seconds)
-        cv2.waitKey(5000)  # Reduced from 10000 to 5000 ms
+        cv2.waitKey(5000)  # 5000 ms
         cv2.destroyWindow(window_name)
 
 def main():
@@ -92,74 +92,74 @@ def main():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     
-    # Lower GPU memory fraction for Jetson Nano (often has only 4GB shared memory)
-    config.gpu_options.per_process_gpu_memory_fraction = 0.3  # Reduced from 0.5 to prevent OOM
+    # Reduce GPU memory fraction further to prevent OOM errors
+    config.gpu_options.per_process_gpu_memory_fraction = 0.25  # Reduced from 0.3
     
     # Optimize for TensorFlow 1.15 specifically
-    config.intra_op_parallelism_threads = 2  # Adjust based on CPU cores
-    config.inter_op_parallelism_threads = 2  # Adjust based on CPU cores
+    config.intra_op_parallelism_threads = 2
+    config.inter_op_parallelism_threads = 2
     
     # Set log level to provide more information
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'  # 0 = all messages shown including INFO
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # Changed to 1 to reduce non-critical messages
     
     # Build TF graph and load model into session for inference
     try:
         print(f"Loading model from {model_path}")
         # Add more detailed error handling for model loading
-        with tf.device('/device:GPU:0'):
-            try:
-                # First, verify the model directory content
-                print(f"Model directory contents: {os.listdir(model_path)}")
-                
-                # Create session with increased timeout for slow devices
+        try:
+            # First, verify the model directory content
+            print(f"Model directory contents: {os.listdir(model_path)}")
+            
+            # Create session with CPU fallback
+            print("Attempting to load model on CPU to avoid GPU memory issues...")
+            with tf.device('/device:CPU:0'):
                 session = tf.Session(graph=tf.Graph(), config=config)
-                
-                # Try to load the model
                 print("Starting model loading, this may take a moment...")
                 tf.saved_model.loader.load(session, ['serve'], model_path)
-                print("Model loaded successfully")
+                print("Model loaded successfully on CPU")
                 
                 # Verify session is working with a simple tensor operation
                 test_tensor = tf.constant([1.0, 2.0, 3.0])
                 test_result = session.run(test_tensor)
                 print(f"TensorFlow session test: {test_result}")
-            except tf.errors.ResourceExhaustedError as e:
-                print(f"ERROR: GPU memory exhausted. Try lowering memory usage: {e}")
-                print("Trying with CPU fallback...")
-                # Fall back to CPU
-                with tf.device('/device:CPU:0'):
-                    session = tf.Session(graph=tf.Graph(), config=config)
-                    tf.saved_model.loader.load(session, ['serve'], model_path)
-                    print("Model loaded successfully on CPU")
-            except tf.errors.InvalidArgumentError as e:
-                print(f"ERROR: Invalid model configuration: {e}")
-                raise
+        except Exception as e:
+            print(f"ERROR loading model on CPU: {e}")
+            raise
     except Exception as e:
         print(f"Error loading model: {e}")
         import traceback
         traceback.print_exc()
         return
    
-    # Attach primary camera source with preferred settings
+    # Attach primary camera source with custom settings for Zebronics ZEB-Ultimate Pro
     try:
-        print("Connecting to camera...")
+        print("Connecting to Zebronics ZEB-Ultimate Pro camera...")
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             print("Error: Could not open camera.")
             return
         print("Camera connected successfully")
         
-        # Set lower resolution to improve frame rate (720p instead of 1080p)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        # Clear all camera properties first to avoid conflicts
+        cap.set(cv2.CAP_PROP_SETTINGS, 0)
         
-        # Set FPS (property #5) - more widely supported than BUFFERSIZE
-        cap.set(cv2.CAP_PROP_FPS, 30)  # Request 30fps
+        # Reduce resolution for better performance (720p)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Further reduced from 1280 to 640
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)  # Further reduced from 720 to 480
         
-        # Check if we can get the current resolution
+        # Set FPS (property #5)
+        cap.set(cv2.CAP_PROP_FPS, 15)  # Reduced from 30 to 15 fps
+        
+        # Disable autofocus to save processing power
+        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        
+        # Skip setting property #38 which was causing errors
+        
+        # Check actual camera parameters
         actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        print(f"Camera resolution: {actual_width}x{actual_height}")
+        actual_fps = cap.get(cv2.CAP_PROP_FPS)
+        print(f"Camera resolution: {actual_width}x{actual_height}, FPS: {actual_fps}")
     except Exception as e:
         print(f"Error accessing camera: {e}")
         return
@@ -175,6 +175,10 @@ def main():
     fps_list = []  # Store recent FPS values
     fps_update_time = time.time()
     avg_fps = 0
+    
+    # Memory management - force garbage collection periodically
+    import gc
+    last_gc_time = time.time()
    
     # Infinite loop to receive frames from camera source
     try:
@@ -205,15 +209,21 @@ def main():
                     break
                 continue
            
+            # Force garbage collection periodically
+            if time.time() - last_gc_time > 30:  # Every 30 seconds
+                gc.collect()
+                last_gc_time = time.time()
+                print("Memory cleanup performed")
+                
             # Resize image for faster processing - use smaller size for inference
             inference_start_time = time.time()
             
-            # Use an even smaller resolution for inference (320x180) - more efficient for TF 1.15
-            image_resized = cv2.resize(image, (320, 180), cv2.INTER_AREA)  # INTER_AREA is better for downsampling
+            # Use an even smaller resolution for inference (224x224) - standard size for many models
+            image_resized = cv2.resize(image, (224, 224), cv2.INTER_AREA)
            
             # Convert image to bytes for TensorFlow input
-            # Use lower JPEG quality (80 instead of default 95) for faster encoding
-            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+            # Use lower JPEG quality (70 instead of 80) for faster encoding
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
             image_bytes = cv2.imencode('.jpg', image_resized, encode_param)[1].tobytes()
            
             # Pass the input image and obtain the inferred outputs from the tensor
@@ -229,9 +239,9 @@ def main():
             inference_time = time.time() - inference_start_time
            
             # Create a smaller display image
-            height, width, ch = image.shape
             display_image = cv2.resize(image, (640, 360))
             display_height, display_width = display_image.shape[:2]
+            height, width = image.shape[:2]
             
             # Scale factor between original and display image
             h_scale = display_height / height
@@ -240,8 +250,8 @@ def main():
             # Loop through detections with early exit after first high-confidence detection
             detections_found = False
             
-            # Only process top 5 detections instead of all to save time
-            max_detections = min(5, int(detection[0]))
+            # Only process top 3 detections instead of 5 to save time
+            max_detections = min(3, int(detection[0]))
             
             for i in range(max_detections):
                 # Filter frames with accuracy above 75%
@@ -267,10 +277,10 @@ def main():
                     cv2.rectangle(display_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
                    
                     # Add label with confidence score
-                    score_percent = round(scores[0][i] * 100, 1)  # Reduced decimal precision
+                    score_percent = round(scores[0][i] * 100, 1)
                     label = f"{object_name}: {score_percent}%"
                     cv2.putText(display_image, label, (x1, y1-5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)  # Smaller font
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
                    
                     print(f"Detected: {object_name}, Score: {score_percent}%")
                    
@@ -280,25 +290,25 @@ def main():
                         
                         # Create a popup window with the detection image (in a thread)
                         popup_thread = CVPopupAlert(object_name, score_percent, image)
-                        popup_thread.daemon = True  # Make thread daemonic so it doesn't block program exit
+                        popup_thread.daemon = True
                         popup_thread.start()
                         print(f"OpenCV popup alert triggered for {object_name}")
                         
-                        # Only process the first high-confidence detection to save time
+                        # Only process the first high-confidence detection
                         break
            
             # Calculate FPS
-            process_time = time.time() - inference_start_time
+            process_time = time.time() - loop_start_time
             current_fps = 1.0 / process_time if process_time > 0 else 0
             
-            # Store recent FPS values (last 10)
+            # Store recent FPS values (last 5 instead of 10)
             fps_list.append(current_fps)
-            if len(fps_list) > 10:
+            if len(fps_list) > 5:
                 fps_list.pop(0)
             
             # Update average FPS every second
             if time.time() - fps_update_time > 1.0:
-                avg_fps = sum(fps_list) / len(fps_list)
+                avg_fps = sum(fps_list) / len(fps_list) if fps_list else 0
                 fps_update_time = time.time()
             
             # Display FPS and inference time on the image
@@ -316,19 +326,22 @@ def main():
                 print("Quitting application...")
                 break
             
-            # Calculate and limit loop rate if needed (to prevent CPU overload)
-            loop_time = time.time() - loop_start_time
-            if loop_time < 0.01:  # If loop is faster than 100 FPS
-                time.sleep(0.01 - loop_time)  # Add small delay
+            # Add delay to prevent CPU overload
+            remaining_time = (1.0/15.0) - (time.time() - loop_start_time)  # Target 15fps max
+            if remaining_time > 0:
+                time.sleep(remaining_time)
            
     except KeyboardInterrupt:
         print("Application interrupted by user")
     except Exception as e:
         print(f"Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         # Clean up
         cap.release()
         cv2.destroyAllWindows()
+        session.close()  # Close TensorFlow session properly
         print("Application terminated")
 
 if __name__ == "__main__":
