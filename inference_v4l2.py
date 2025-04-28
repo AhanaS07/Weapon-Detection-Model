@@ -101,8 +101,15 @@ def main():
     config.intra_op_parallelism_threads = 2
     config.inter_op_parallelism_threads = 2
     
+    # IMPORTANT: Disable the CUDA malloc async allocator that's causing the error
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+    os.environ['TF_CUDA_MALLOC_ASYNC'] = '0'  # Disable CUDA malloc async
+    
     # Set log level to provide more information
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # Changed to 1 to reduce non-critical messages
+    
+    # Try to use older memory allocator instead of GPU Async allocator
+    os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_host'
     
     # Build TF graph and load model into session for inference
     try:
@@ -112,18 +119,31 @@ def main():
             # First, verify the model directory content
             print(f"Model directory contents: {os.listdir(model_path)}")
             
-            # Create session with CPU fallback
-            print("Attempting to load model on CPU to avoid GPU memory issues...")
-            with tf.device('/device:CPU:0'):
+            # Force CPU usage to avoid CUDA issues
+            print("Attempting to load model with safe device settings...")
+            
+            # Create a device placement context that prefers CPU over GPU for operations
+            # that might cause issues with older CUDA versions
+            with tf.device('/cpu:0'):
                 session = tf.Session(graph=tf.Graph(), config=config)
                 print("Starting model loading, this may take a moment...")
                 tf.saved_model.loader.load(session, ['serve'], model_path)
-                print("Model loaded successfully on CPU")
+                print("Model loaded successfully")
                 
-                # Remove the tensor test operation that was causing errors
         except Exception as e:
-            print(f"ERROR loading model on CPU: {e}")
-            raise
+            print(f"ERROR loading model: {e}")
+            
+            # Fallback to pure CPU mode if GPU loading fails
+            print("Falling back to pure CPU mode...")
+            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Hide GPUs from TensorFlow
+            
+            # Try again with CPU only
+            config = tf.ConfigProto(device_count={'GPU': 0})
+            session = tf.Session(graph=tf.Graph(), config=config)
+            print("Starting model loading in CPU-only mode...")
+            tf.saved_model.loader.load(session, ['serve'], model_path)
+            print("Model loaded successfully in CPU-only mode")
+            
     except Exception as e:
         print(f"Error loading model: {e}")
         import traceback
