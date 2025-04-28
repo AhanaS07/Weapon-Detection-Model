@@ -148,3 +148,13 @@ Connecting to camera...
 Error accessing camera: VideoCapture() takes at most 1 argument (2 given)
 
 OpenCV old version code used
+
+206] Device interconnect StreamExecutor with strength 1 edge matrix:
+2025-04-28 13:56:42.748707: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1212]      0 
+2025-04-28 13:56:42.748747: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1225] 0:   N 
+2025-04-28 13:56:42.749411: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-04-28 13:56:42.749796: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-04-28 13:56:42.749957: I tensorflow/core/common_runtime/gpu/gpu_process_state.cc:145] Using CUDA malloc Async allocator for GPU: 0
+2025-04-28 13:56:42.750004: F tensorflow/core/common_runtime/gpu/gpu_cudamallocasync_allocator.cc:206] GpuCudaMallocAsyncAllocator requires CUDA 11.2+
+Aborted (core dumped)
+
