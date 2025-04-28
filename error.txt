@@ -141,3 +141,9 @@ Traceback (most recent call last):
   File "/home/ahana/.local/lib/python3.6/site-packages/tensorflow_core/python/client/session.py", line 312, in __init__
     'Tensor. (%s)' % (fetch, str(e)))
 ValueError: Fetch argument <tf.Tensor 'Const:0' shape=(3,) dtype=float32> cannot be interpreted as a Tensor. (Tensor Tensor("Const:0", shape=(3,), dtype=float32, device=/device:CPU:0) is not an element of this graph.)
+
+Removed test tensor part
+
+Connecting to camera...
+Error accessing camera: VideoCapture() takes at most 1 argument (2 given)
+
