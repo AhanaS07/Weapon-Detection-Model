@@ -3,7 +3,7 @@
 """
 Optimized inference script for weapon detection with visual alerts
 Specifically optimized for TensorFlow 1.15 on Jetson Nano with Zebronics ZEB-Ultimate Pro
-With V4L2 direct access for better memory management
+With direct V4L2 control via OpenCV for better memory management
 
 @author: ahana
 """
@@ -13,11 +13,7 @@ import threading
 import tensorflow.compat.v1 as tf
 import os
 import numpy as np
-import v4l2capture  # You'll need to install this with: pip install v4l2capture
-import select
-import fcntl
-import mmap
-import v4l2  # You'll need to install this with: pip install v4l2
+import gc
 
 # Variable declarations
 detect_timer = 0
@@ -88,152 +84,11 @@ class CVPopupAlert(threading.Thread):
         # Wait for key press or timeout (5 seconds)
         cv2.waitKey(5000)  # 5000 ms
         cv2.destroyWindow(window_name)
-        
-# V4L2 Camera class to handle direct buffer management
-class V4L2Camera:
-    def __init__(self, device="/dev/video0", width=640, height=480, fps=15):
-        self.device = device
-        self.width = width
-        self.height = height
-        self.fps = fps
-        self.fd = None
-        self.buffers = []
-        self.is_streaming = False
-        
-    def open(self):
-        # Open the device
-        self.fd = open(self.device, 'rb+', buffering=0)
-        
-        # Get device capabilities
-        cap = v4l2.v4l2_capability()
-        fcntl.ioctl(self.fd, v4l2.VIDIOC_QUERYCAP, cap)
-        
-        # Check if device supports streaming
-        if not (cap.capabilities & v4l2.V4L2_CAP_STREAMING):
-            self.fd.close()
-            raise Exception("V4L2 device does not support streaming")
-            
-        # Set format
-        fmt = v4l2.v4l2_format()
-        fmt.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-        fmt.fmt.pix.width = self.width
-        fmt.fmt.pix.height = self.height
-        fmt.fmt.pix.pixelformat = v4l2.V4L2_PIX_FMT_YUYV
-        fmt.fmt.pix.field = v4l2.V4L2_FIELD_NONE
-        fcntl.ioctl(self.fd, v4l2.VIDIOC_S_FMT, fmt)
-        
-        # Set FPS
-        streamparm = v4l2.v4l2_streamparm()
-        streamparm.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-        streamparm.parm.capture.timeperframe.numerator = 1
-        streamparm.parm.capture.timeperframe.denominator = self.fps
-        fcntl.ioctl(self.fd, v4l2.VIDIOC_S_PARM, streamparm)
-        
-        # Request buffers for memory-mapped IO
-        req = v4l2.v4l2_requestbuffers()
-        req.count = 4  # Number of buffers to allocate
-        req.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-        req.memory = v4l2.V4L2_MEMORY_MMAP
-        fcntl.ioctl(self.fd, v4l2.VIDIOC_REQBUFS, req)
-        
-        # Actually allocated buffers might be less
-        if req.count < 2:
-            raise Exception("Insufficient buffer memory")
-            
-        # Set up memory mapping for each buffer
-        self.buffers = []
-        for i in range(req.count):
-            buf = v4l2.v4l2_buffer()
-            buf.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-            buf.memory = v4l2.V4L2_MEMORY_MMAP
-            buf.index = i
-            fcntl.ioctl(self.fd, v4l2.VIDIOC_QUERYBUF, buf)
-            
-            buffer_length = buf.length
-            buffer_offset = buf.m.offset
-            
-            # Memory map the buffer
-            buffer_mmap = mmap.mmap(
-                self.fd.fileno(),
-                buffer_length,
-                flags=mmap.MAP_SHARED,
-                prot=mmap.PROT_READ | mmap.PROT_WRITE,
-                offset=buffer_offset
-            )
-            
-            self.buffers.append({
-                'length': buffer_length,
-                'mmap': buffer_mmap
-            })
-            
-        return True
-        
-    def start_streaming(self):
-        # Queue the buffers
-        for i in range(len(self.buffers)):
-            buf = v4l2.v4l2_buffer()
-            buf.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-            buf.memory = v4l2.V4L2_MEMORY_MMAP
-            buf.index = i
-            fcntl.ioctl(self.fd, v4l2.VIDIOC_QBUF, buf)
-            
-        # Start streaming
-        buf_type = v4l2.v4l2_buf_type(v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE)
-        fcntl.ioctl(self.fd, v4l2.VIDIOC_STREAMON, buf_type)
-        self.is_streaming = True
-        
-    def read_frame(self):
-        # Wait for a buffer to be ready
-        readable, _, _ = select.select([self.fd], [], [], 2.0)
-        if not readable:
-            print("Timeout waiting for frame")
-            return None
-            
-        # Dequeue a buffer
-        buf = v4l2.v4l2_buffer()
-        buf.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-        buf.memory = v4l2.V4L2_MEMORY_MMAP
-        fcntl.ioctl(self.fd, v4l2.VIDIOC_DQBUF, buf)
-        
-        # Access the buffer data
-        buffer_data = self.buffers[buf.index]['mmap'].read(buf.bytesused)
-        
-        # Reset buffer position for next read
-        self.buffers[buf.index]['mmap'].seek(0)
-        
-        # Convert YUYV to BGR format
-        yuyv = np.frombuffer(buffer_data, dtype=np.uint8).reshape((self.height, self.width, 2))
-        bgr = cv2.cvtColor(yuyv, cv2.COLOR_YUV2BGR_YUYV)
-        
-        # Re-queue the buffer immediately after use
-        fcntl.ioctl(self.fd, v4l2.VIDIOC_QBUF, buf)
-        
-        return bgr
-        
-    def stop_streaming(self):
-        if self.is_streaming:
-            buf_type = v4l2.v4l2_buf_type(v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE)
-            fcntl.ioctl(self.fd, v4l2.VIDIOC_STREAMOFF, buf_type)
-            self.is_streaming = False
-            
-    def close(self):
-        if self.is_streaming:
-            self.stop_streaming()
-            
-        # Unmap all buffers
-        for buf in self.buffers:
-            if 'mmap' in buf:
-                buf['mmap'].close()
-                
-        # Close the device
-        if self.fd:
-            self.fd.close()
-            self.fd = None
 
 def main():
     global detect_timer
    
-    print("Starting optimized weapon detection system with V4L2 memory management...")
+    print("Starting optimized weapon detection system...")
     
     # Configure TensorFlow 1.15 for better performance on Jetson Nano
     config = tf.ConfigProto()
@@ -278,18 +133,43 @@ def main():
         traceback.print_exc()
         return
    
-    # Initialize V4L2 camera with MMAP for proper buffer management
-    camera = None
+    # Attach primary camera source with custom settings
     try:
-        print("Initializing V4L2 camera...")
-        camera = V4L2Camera(device="/dev/video0", width=640, height=480, fps=15)
-        camera.open()
-        camera.start_streaming()
-        print("V4L2 camera initialized successfully")
+        print("Connecting to camera...")
+        
+        # Using OpenCV's VideoCapture but with API preference set to V4L2
+        # This provides better control over the actual V4L2 device
+        cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        
+        if not cap.isOpened():
+            print("Error: Could not open camera.")
+            return
+        print("Camera connected successfully")
+        
+        # Force buffer cleanup by setting a small buffer size
+        # This is a key optimization to prevent frame accumulation
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        
+        # Reduce resolution for better performance
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        
+        # Set FPS
+        cap.set(cv2.CAP_PROP_FPS, 15)
+        
+        # Disable autofocus to save processing power
+        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        
+        # Skip setting property #38 which was causing errors
+        
+        # Check actual camera parameters
+        actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        actual_fps = cap.get(cv2.CAP_PROP_FPS)
+        print(f"Camera resolution: {actual_width}x{actual_height}, FPS: {actual_fps}")
+        
     except Exception as e:
-        print(f"Error initializing V4L2 camera: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error accessing camera: {e}")
         return
    
     # Initialize a display window
@@ -305,7 +185,6 @@ def main():
     avg_fps = 0
     
     # Memory management - force garbage collection periodically
-    import gc
     last_gc_time = time.time()
    
     # Infinite loop to receive frames from camera source
@@ -313,12 +192,16 @@ def main():
         while True:
             loop_start_time = time.time()  # Track total loop time
             
-            # Reading frames directly from V4L2 (efficient buffer handling)
-            image = camera.read_frame()
-            if image is None:
+            # Reading frames from camera
+            ret, image = cap.read()
+            if not ret:
                 print("Error: Failed to capture image")
                 time.sleep(0.1)
                 continue
+            
+            # Explicitly release buffer memory after capture to prevent accumulation
+            # This is a key addition for memory management
+            ret = None  # Release reference to ret
             
             # Skip frames to improve performance
             frame_count += 1
@@ -335,6 +218,10 @@ def main():
                 if key == ord('q'):
                     print("Quitting application...")
                     break
+                    
+                # Release image reference immediately to free memory
+                display_img = None
+                image = None
                 continue
            
             # Force garbage collection periodically
@@ -346,13 +233,15 @@ def main():
             # Resize image for faster processing - use smaller size for inference
             inference_start_time = time.time()
             
-            # Use an even smaller resolution for inference (224x224) - standard size for many models
+            # Use an even smaller resolution for inference (224x224)
             image_resized = cv2.resize(image, (224, 224), cv2.INTER_AREA)
            
             # Convert image to bytes for TensorFlow input
-            # Use lower JPEG quality (70 instead of 80) for faster encoding
             encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
             image_bytes = cv2.imencode('.jpg', image_resized, encode_param)[1].tobytes()
+            
+            # Release intermediate reference to free memory
+            image_resized = None
            
             # Pass the input image and obtain the inferred outputs from the tensor
             try:
@@ -360,6 +249,8 @@ def main():
                     ['num_detections:0', 'detection_scores:0', 'detection_boxes:0', 'detection_classes:0'],
                     feed_dict={'encoded_image_string_tensor:0': [image_bytes]}
                 )
+                # Release reference to free memory
+                image_bytes = None
             except Exception as e:
                 print(f"Error during inference: {e}")
                 continue
@@ -447,7 +338,7 @@ def main():
            
             # Display the output image
             cv2.imshow("Weapon Detection", display_image)
-           
+            
             # Break loop if 'q' is pressed
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
@@ -458,6 +349,10 @@ def main():
             remaining_time = (1.0/15.0) - (time.time() - loop_start_time)  # Target 15fps max
             if remaining_time > 0:
                 time.sleep(remaining_time)
+            
+            # Release frame references to free memory
+            display_image = None
+            image = None
            
     except KeyboardInterrupt:
         print("Application interrupted by user")
@@ -466,15 +361,14 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
-        # Clean up - properly stop streaming and release resources
-        if camera:
-            camera.stop_streaming()
-            camera.close()
+        # Clean up - release all resources
+        cap.release()
         cv2.destroyAllWindows()
         session.close()  # Close TensorFlow session properly
-        # Force final garbage collection
+        
+        # Force final garbage collection to free all memory
         gc.collect()
-        print("Application terminated and resources released")
+        print("Application terminated and all resources released")
 
 if __name__ == "__main__":
     main()
