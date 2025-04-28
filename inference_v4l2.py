@@ -134,9 +134,9 @@ def main():
     try:
         print("Connecting to camera...")
         
-        # Using OpenCV's VideoCapture but with API preference set to V4L2
-        # This provides better control over the actual V4L2 device
-        cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        # Use V4L2 backend for older OpenCV versions
+        # Doesn't support 2nd parameter of VideoCapture constructor
+        cap = cv2.VideoCapture(0)
         
         if not cap.isOpened():
             print("Error: Could not open camera.")
