@@ -147,3 +147,4 @@ Removed test tensor part
 Connecting to camera...
 Error accessing camera: VideoCapture() takes at most 1 argument (2 given)
 
+OpenCV old version code used
