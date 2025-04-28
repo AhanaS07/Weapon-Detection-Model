@@ -62,3 +62,31 @@ pciBusID: 0000:00:00.0
 2025-04-28 07:07:30.704790: F tensorflow/core/common_runtime/gpu/gpu_cudamallocasync_allocator.cc:206] GpuCudaMallocAsyncAllocator requires CUDA 11.2+
 Aborted (core dumped)
 
+Left for Now 
+
+pip install v4l2capture
+Defaulting to user installation because normal site-packages is not writeable
+Collecting v4l2capture
+  Downloading v4l2capture-12.tar.gz (5.8 kB)
+  Preparing metadata (setup.py) ... done
+Building wheels for collected packages: v4l2capture
+  Building wheel for v4l2capture (setup.py) ... error
+  ERROR: Command errored out with exit status 1:
+   command: /usr/bin/python3 -u -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/tmp/pip-install-12cgcb7v/v4l2capture_b12ad0b615a9419cab2d2b96346df118/setup.py'"'"'; __file__='"'"'/tmp/pip-install-12cgcb7v/v4l2capture_b12ad0b615a9419cab2d2b96346df118/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' bdist_wheel -d /tmp/pip-wheel-itho0jec
+       cwd: /tmp/pip-install-12cgcb7v/v4l2capture_b12ad0b615a9419cab2d2b96346df118/
+  Complete output (12 lines):
+  running bdist_wheel
+  running build
+  running build_ext
+  building 'v4l2capture' extension
+  creating build
+  creating build/temp.linux-aarch64-3.6
+  aarch64-linux-gnu-gcc -pthread -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -fPIC -I/usr/include/python3.6m -c v4l2capture.c -o build/temp.linux-aarch64-3.6/v4l2capture.o
+  v4l2capture.c:20:10: fatal error: libv4l2.h: No such file or directory
+   #include <libv4l2.h>
+            ^~~~~~~~~~~
+  compilation terminated.
+  error: command 'aarch64-linux-gnu-gcc' failed with exit status 1
+  ----------------------------------------
+  ERROR: Failed building wheel for v4l2capture
+
