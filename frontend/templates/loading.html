@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Image Feed</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        function updateLiveFeed(event) {
+            const processedImage = JSON.parse(event.data);
+            const imageContainer = document.getElementById('live-feed');
+            const imageElement = document.createElement('img');
+            imageElement.src = processedImage.view_url;
+            imageElement.alt = 'Live Feed';
+            imageElement.classList.add('w-full', 'h-auto', 'rounded-lg', 'shadow-lg');
+            imageContainer.innerHTML = '';
+            imageContainer.appendChild(imageElement);
+
+            const tableBody = document.getElementById('image-table');
+            const newRow = document.createElement('tr');
+
+            const imageNameLink = `<a href="${processedImage.view_url}" target="_blank" class="text-blue-600 hover:underline">${processedImage.file_name}</a>`;
+            newRow.innerHTML = `
+                <td class="py-3 px-6 text-sm font-medium text-gray-900 whitespace-nowrap">${imageNameLink}</td>
+                <td class="py-3 px-6 text-sm font-medium text-gray-500 whitespace-nowrap">${processedImage.date}</td>
+            `;
+            tableBody.appendChild(newRow);
+        }
+
+        const eventSource = new EventSource('/stream');
+        eventSource.onmessage = updateLiveFeed;
+    </script>
+</head>
+<body class="bg-blue-100 h-screen">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Safe Sight: Weapon Detection System</h1>
+        <a href="/login" class="bg-white text-blue-600 px-4 py-2 rounded hover:bg-gray-100 transition">
+            Logout
+        </a>
+    </header>
+
+    <div class="flex justify-center items-center min-h-[calc(100vh-4rem)] px-4">
+        <div class="w-full max-w-7xl flex justify-between space-x-6">
+            <!-- Left side: Live feed of the image -->
+            <div class="w-1/2 bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-700 mb-4">Live Feed</h2>
+                <div id="live-feed" class="w-full h-96 bg-gray-200 flex justify-center items-center rounded-lg">
+                    <p class="text-gray-500">Waiting for image to process...</p>
+                </div>
+            </div>
+
+            <!-- Right side: Processed Images Table with Scrollbar -->
+            <div class="w-1/2 bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-700 mb-4">Processed Images</h2>
+                <div class="max-h-96 overflow-y-auto">
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg shadow-md table-auto">
+                        <thead class="bg-blue-600 text-white sticky top-0">
+                            <tr>
+                                <th class="py-3 px-6 text-left text-lg font-semibold">Image name, click to view</th>
+                                <th class="py-3 px-6 text-left text-lg font-semibold">Processed Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="image-table">
+                            <!-- Dynamic rows will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

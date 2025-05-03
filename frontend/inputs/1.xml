@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Image Set </folder>
+	<filename>1.jpeg</filename>
+	<path>/Users/vihanmurthy/Downloads/Image Set /1.jpeg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>347</width>
+		<height>145</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>gun</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>79</xmin>
+			<ymin>46</ymin>
+			<xmax>141</xmax>
+			<ymax>87</ymax>
+		</bndbox>
+	</object>
+</annotation>

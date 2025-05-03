@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Gun Annotations</folder>
+	<filename>armas (2466).jpg</filename>
+	<path>/Users/vihanmurthy/Downloads/Gun Annotations/armas (2466).jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>160</width>
+		<height>120</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>gun</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>33</xmin>
+			<ymin>31</ymin>
+			<xmax>140</xmax>
+			<ymax>66</ymax>
+		</bndbox>
+	</object>
+</annotation>

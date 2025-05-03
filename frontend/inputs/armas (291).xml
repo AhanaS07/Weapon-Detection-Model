@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Image Set </folder>
+	<filename>armas (291).jpg</filename>
+	<path>/Users/vihanmurthy/Downloads/Image Set /armas (291).jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1200</width>
+		<height>300</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>gun</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>389</xmin>
+			<ymin>66</ymin>
+			<xmax>594</xmax>
+			<ymax>150</ymax>
+		</bndbox>
+	</object>
+</annotation>

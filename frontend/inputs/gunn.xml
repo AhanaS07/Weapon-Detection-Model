@@ -1,0 +1,26 @@
+<annotation verified="yes">
+	<folder>Downloads</folder>
+	<filename>gunn.jpg</filename>
+	<path>C:\Users\thend\OneDrive\Downloads\gunn.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>2449</width>
+		<height>2449</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>Gun</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>260</xmin>
+			<ymin>274</ymin>
+			<xmax>2231</xmax>
+			<ymax>2260</ymax>
+		</bndbox>
+	</object>
+</annotation>

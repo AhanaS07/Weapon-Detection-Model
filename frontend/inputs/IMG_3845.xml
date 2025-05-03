@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Image Set </folder>
+	<filename>IMG_3845.jpeg</filename>
+	<path>/Users/vihanmurthy/Downloads/Image Set /IMG_3845.jpeg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>3024</width>
+		<height>4032</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>gun</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>2124</xmin>
+			<ymin>1818</ymin>
+			<xmax>2482</xmax>
+			<ymax>2024</ymax>
+		</bndbox>
+	</object>
+</annotation>

@@ -1,0 +1,25 @@
+<annotation>
+	<folder>my-project-name</folder>
+	<filename>asus.jpg</filename>
+	<path>/my-project-name/asus.jpg</path>
+	<source>
+		<database>Unspecified</database>
+	</source>
+	<size>
+		<width>3840</width>
+		<height>2400</height>
+		<depth>3</depth>
+	</size>
+	<object>
+		<name>ASUS</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>2270</xmin>
+			<ymin>1080</ymin>
+			<xmax>2759</xmax>
+			<ymax>1320</ymax>
+		</bndbox>
+	</object>
+</annotation>

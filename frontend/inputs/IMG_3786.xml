@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Image Set </folder>
+	<filename>IMG_3786.jpeg</filename>
+	<path>/Users/vihanmurthy/Downloads/Image Set /IMG_3786.jpeg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>3024</width>
+		<height>4032</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>gun</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>112</xmin>
+			<ymin>1889</ymin>
+			<xmax>606</xmax>
+			<ymax>2247</ymax>
+		</bndbox>
+	</object>
+</annotation>

@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Image Set </folder>
+	<filename>IMG_3842.jpeg</filename>
+	<path>/Users/vihanmurthy/Downloads/Image Set /IMG_3842.jpeg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>3024</width>
+		<height>4032</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>gun</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>2224</xmin>
+			<ymin>1700</ymin>
+			<xmax>2547</xmax>
+			<ymax>1953</ymax>
+		</bndbox>
+	</object>
+</annotation>
