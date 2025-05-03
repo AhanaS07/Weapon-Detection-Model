@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, Response, session
 from weapon_detection_system import weapon_detection_system
+from detection_api import detection_api
 import os
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Replace with a secure random key in production
+app.register_blueprint(detection_api)
 
 task_status = {"completed": False}
 
@@ -53,6 +55,22 @@ def loading():
         return redirect(url_for('login'))
     return render_template('loading.html')
 
+@app.route('/detect-weapons')
+def detect_weapons_page():
+    """Renders the weapon detection page for manual image uploads."""
+    if not session.get("logged_in"):
+        return redirect(url_for('login'))
+    return render_template('detect.html')
+
+@app.route('/detection-results/<filename>')
+def detection_results(filename):
+    """Display detection results for a specific image."""
+    if not session.get("logged_in"):
+        return redirect(url_for('login'))
+    return render_template('results.html', image_filename=filename)
+
 if __name__ == '__main__':
+    # Create required directories if they don't exist
+    os.makedirs('static/uploads', exist_ok=True)
     app.run(debug=True, host='0.0.0.0', port=5000)
 
