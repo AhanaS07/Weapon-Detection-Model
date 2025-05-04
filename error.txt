@@ -158,3 +158,54 @@ OpenCV old version code used
 2025-04-28 13:56:42.750004: F tensorflow/core/common_runtime/gpu/gpu_cudamallocasync_allocator.cc:206] GpuCudaMallocAsyncAllocator requires CUDA 11.2+
 Aborted (core dumped)
 
+Left again
+
+python3 model_server.py
+2025-05-04 13:57:39.002273: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudart.so.10.2
+WARNING:tensorflow:Deprecation warnings have been disabled. Set TF_ENABLE_DEPRECATION_WARNINGS=1 to re-enable them.
+2025-05-04 13:57:51,756 - __main__ - INFO - Loading model from /home/ahana/models/research/weapon_detection/models/saved_model
+2025-05-04 13:57:51.832315: W tensorflow/core/platform/profile_utils/cpu_utils.cc:98] Failed to find bogomips in /proc/cpuinfo; cannot determine CPU frequency
+2025-05-04 13:57:51.832718: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x15898a40 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+2025-05-04 13:57:51.832780: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): Host, Default Version
+2025-05-04 13:57:51.875712: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcuda.so.1
+2025-05-04 13:57:52.055138: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-05-04 13:57:52.055489: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x18d17fd0 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+2025-05-04 13:57:52.055564: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): NVIDIA Tegra X1, Compute Capability 5.3
+2025-05-04 13:57:52.056222: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-05-04 13:57:52.056366: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1666] Found device 0 with properties: 
+name: NVIDIA Tegra X1 major: 5 minor: 3 memoryClockRate(GHz): 0.9216
+pciBusID: 0000:00:00.0
+2025-05-04 13:57:52.056467: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudart.so.10.2
+2025-05-04 13:57:52.229539: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcublas.so.10
+2025-05-04 13:57:52.308537: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcufft.so.10
+2025-05-04 13:57:52.421535: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcurand.so.10
+2025-05-04 13:57:52.549148: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcusolver.so.10
+2025-05-04 13:57:52.635236: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcusparse.so.10
+2025-05-04 13:57:52.639731: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudnn.so.8
+2025-05-04 13:57:52.640206: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-05-04 13:57:52.640617: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-05-04 13:57:52.640697: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1794] Adding visible gpu devices: 0
+2025-05-04 13:57:52.640855: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudart.so.10.2
+2025-05-04 13:57:59.511248: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1206] Device interconnect StreamExecutor with strength 1 edge matrix:
+2025-05-04 13:57:59.511346: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1212]      0 
+2025-05-04 13:57:59.511384: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1225] 0:   N 
+2025-05-04 13:57:59.512008: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-05-04 13:57:59.512408: I tensorflow/stream_executor/cuda/cuda_gpu_executor.cc:1049] ARM64 does not support NUMA - returning NUMA node zero
+2025-05-04 13:57:59.512584: I tensorflow/core/common_runtime/gpu/gpu_process_state.cc:145] Using CUDA malloc Async allocator for GPU: 0
+2025-05-04 13:57:59.512630: F tensorflow/core/common_runtime/gpu/gpu_cudamallocasync_allocator.cc:206] GpuCudaMallocAsyncAllocator requires CUDA 11.2+
+Aborted (core dumped)
+
+Error coming in model_server.py, Solved by manually setting the versions in code 
+
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint for basic health check and API info."""
+    return jsonify({
+        'name': 'Weapon Detection Model API',
+        'version': '1.0.0',
+        'endpoints': [
+            '/status - Health check endpoint',
+            '/api/detect - Detection endpoint (POST)'
+        ]
+    })
+
