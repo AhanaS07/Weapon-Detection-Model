@@ -1,7 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, Response, session
-from weapon_detection_system import weapon_detection_system
+from weapon_detection_system import weapon_detection_system, set_use_model_api
 from detection_api import detection_api
 import os
+import json
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Replace with a secure random key in production
@@ -12,6 +13,10 @@ task_status = {"completed": False}
 def run_weapon_detection():
     global task_status
     task_status["completed"] = False
+    
+    # Set to use the model API instead of static images
+    set_use_model_api(True)
+    
     for processed_image in weapon_detection_system():
         task_status["completed"] = False
         yield f"data:{processed_image}\n\n"
@@ -39,7 +44,7 @@ def login():
         password = request.form['password']
         if username == 'admin' and password == 'admin':
             session['logged_in'] = True
-            return redirect(url_for('loading'))
+            return redirect(url_for('model_config'))  # Redirect to model config first
         else:
             error = "Invalid username or password."
     return render_template('login.html', error=error)
@@ -54,6 +59,13 @@ def loading():
     if not session.get("logged_in"):
         return redirect(url_for('login'))
     return render_template('loading.html')
+
+@app.route('/model-config', methods=['GET'])
+def model_config():
+    """Renders the model configuration page."""
+    if not session.get("logged_in"):
+        return redirect(url_for('login'))
+    return render_template('model_config.html')
 
 @app.route('/detect-weapons')
 def detect_weapons_page():
@@ -72,5 +84,6 @@ def detection_results(filename):
 if __name__ == '__main__':
     # Create required directories if they don't exist
     os.makedirs('static/uploads', exist_ok=True)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    os.makedirs('static/processed_images', exist_ok=True)
+    app.run(debug=True, host='0.0.0.0', port=5001)
 

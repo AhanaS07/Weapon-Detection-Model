@@ -10,4 +10,3 @@ numpy
 werkzeug
 flask-limiter
 uuid
-logging

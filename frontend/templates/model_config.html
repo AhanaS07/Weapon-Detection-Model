@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Configuration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Function to get current model configuration
+        async function getModelConfig() {
+            try {
+                const response = await fetch('/api/model_config');
+                const data = await response.json();
+                
+                document.getElementById('model-path').value = data.model_path;
+                document.getElementById('model-status').textContent = data.status;
+                
+                // Update status color
+                const statusElement = document.getElementById('model-status');
+                if (data.status === 'loaded' || data.status === 'loaded_cpu') {
+                    statusElement.className = 'text-green-600 font-semibold';
+                } else if (data.status === 'error_not_found' || data.status === 'error_loading' || data.status === 'error') {
+                    statusElement.className = 'text-red-600 font-semibold';
+                } else {
+                    statusElement.className = 'text-yellow-600 font-semibold';
+                }
+            } catch (error) {
+                console.error('Error fetching model config:', error);
+            }
+        }
+        
+        // Function to save model configuration
+        async function saveModelConfig() {
+            const modelPath = document.getElementById('model-path').value.trim();
+            if (!modelPath) {
+                alert('Please enter a valid model path');
+                return;
+            }
+            
+            document.getElementById('loading-indicator').classList.remove('hidden');
+            document.getElementById('save-btn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/set_model_path', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ model_path: modelPath })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Show success notification
+                    document.getElementById('status-message').textContent = result.message;
+                    document.getElementById('status-message').className = 'text-green-600 mt-2';
+                    
+                    // Update status
+                    getModelConfig();
+                    
+                    // Enable continue button
+                    document.getElementById('continue-btn').disabled = false;
+                } else {
+                    // Show error notification
+                    document.getElementById('status-message').textContent = result.message || 'Error setting model path';
+                    document.getElementById('status-message').className = 'text-red-600 mt-2';
+                }
+            } catch (error) {
+                console.error('Error saving model config:', error);
+                document.getElementById('status-message').textContent = 'Error connecting to server';
+                document.getElementById('status-message').className = 'text-red-600 mt-2';
+            } finally {
+                document.getElementById('loading-indicator').classList.add('hidden');
+                document.getElementById('save-btn').disabled = false;
+            }
+        }
+        
+        // Load configuration when page loads
+        window.onload = getModelConfig;
+    </script>
+</head>
+<body class="bg-blue-100 h-screen">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Safe Sight: Weapon Detection System</h1>
+        <a href="/logout" class="bg-white text-blue-600 px-4 py-2 rounded hover:bg-gray-100 transition">
+            Logout
+        </a>
+    </header>
+
+    <div class="flex justify-center items-center min-h-[calc(100vh-4rem)] px-4">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-lg">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Model Configuration</h2>
+            
+            <div class="mb-6">
+                <p class="text-gray-600 mb-4">
+                    Please configure the URL to your weapon detection model API. This is required before you can use the system.
+                </p>
+                
+                <div class="mb-4">
+                    <label for="model-path" class="block text-gray-700 font-medium mb-2">Model API URL</label>
+                    <input type="text" id="model-path" 
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="http://modelserver:port/api/detect">
+                    <p class="mt-1 text-sm text-gray-500">Example: http://localhost:8000/api/detect</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2">Current Model Status:</label>
+                    <span id="model-status" class="text-yellow-600 font-semibold">Not loaded</span>
+                </div>
+                
+                <div id="status-message" class="mt-2"></div>
+            </div>
+            
+            <div class="flex items-center justify-between">
+                <button id="save-btn" onclick="saveModelConfig()" 
+                    class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
+                    Connect to API
+                </button>
+                
+                <div id="loading-indicator" class="hidden flex items-center">
+                    <svg class="animate-spin h-5 w-5 text-blue-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Loading...</span>
+                </div>
+                
+                <a id="continue-btn" href="/loading" 
+                    class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition disabled:opacity-50"
+                    disabled>
+                    Continue to Detection
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

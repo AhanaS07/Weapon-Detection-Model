@@ -22,6 +22,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
 from werkzeug.utils import secure_filename
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -40,59 +41,13 @@ detection_api = Blueprint('detection_api', __name__)
 # Variable declarations
 object_map = ["knife", "gun"]
 
-# Load the TensorFlow model (once, at startup)
-def load_detection_model():
-    """Load the weapon detection model into memory."""
-    logger.info("Loading weapon detection model...")
-    
-    # Model path (modify this to point to the correct model path)
-    model_path = os.path.expanduser("~/models/research/weapon_detection/models/saved_model")
-    
-    # Check if model exists
-    if not os.path.exists(model_path):
-        logger.error(f"Model not found at {model_path}")
-        return None
-    
-    logger.info(f"Using TensorFlow 1.15 model: {model_path}")
-    
-    # Configure TensorFlow for better performance
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.2
-    config.intra_op_parallelism_threads = 2
-    config.inter_op_parallelism_threads = 2
-    
-    # Disable CUDA malloc async allocator if causing errors
-    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-    os.environ['TF_CUDA_MALLOC_ASYNC'] = '0'
-    
-    try:
-        # First try to load with GPU
-        session = tf.Session(graph=tf.Graph(), config=config)
-        tf.saved_model.loader.load(session, ['serve'], model_path)
-        logger.info("Model loaded successfully")
-        return session
-    except Exception as e:
-        logger.error(f"Error loading model with GPU: {e}")
-        
-        # Fallback to pure CPU mode if GPU loading fails
-        logger.info("Falling back to pure CPU mode...")
-        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-        
-        # Try again with CPU only
-        config = tf.ConfigProto(device_count={'GPU': 0})
-        session = tf.Session(graph=tf.Graph(), config=config)
-        
-        try:
-            tf.saved_model.loader.load(session, ['serve'], model_path)
-            logger.info("Model loaded successfully in CPU-only mode")
-            return session
-        except Exception as e:
-            logger.error(f"Error loading model in CPU mode: {e}")
-            return None
-
-# Global session variable to store the loaded model
-detection_session = load_detection_model()
+# Default model URL (will be updated via API)
+DEFAULT_MODEL_URL = "http://localhost:8000/api/detect"
+# Store the model URL and status - will be updated via API
+model_config = {
+    "model_url": DEFAULT_MODEL_URL,
+    "status": "not_connected"
+}
 
 # Directory to save uploaded images
 UPLOAD_FOLDER = os.path.join('static', 'uploads')
@@ -116,10 +71,42 @@ def api_key_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Process image through detection model
+# Verify connection to the remote model API
+def verify_model_connection(model_url=None):
+    """Verify connection to the remote model API.
+    
+    Args:
+        model_url: Optional URL to the model API, uses the configured URL if None
+    
+    Returns:
+        True if connection is successful, False otherwise
+    """
+    if model_url is None:
+        model_url = model_config["model_url"]
+        
+    logger.info(f"Verifying connection to model API at: {model_url}")
+    
+    try:
+        # Try to connect to the model API (health check)
+        response = requests.get(f"{model_url.rstrip('/')}/status", timeout=5)
+        
+        if response.status_code == 200:
+            logger.info("Successfully connected to model API")
+            model_config["status"] = "connected"
+            return True
+        else:
+            logger.error(f"Model API returned status code: {response.status_code}")
+            model_config["status"] = "error_connection"
+            return False
+    except Exception as e:
+        logger.error(f"Failed to connect to model API: {e}")
+        model_config["status"] = "error_connection"
+        return False
+
+# Process image through remote model API
 def detect_weapons(image_path):
     """
-    Process an image through the weapon detection model.
+    Process an image through the remote model API.
     
     Args:
         image_path: Path to the image file
@@ -127,74 +114,40 @@ def detect_weapons(image_path):
     Returns:
         List of detection results
     """
-    if detection_session is None:
-        logger.error("Model not loaded, cannot perform detection")
+    if model_config["status"] != "connected":
+        logger.error("Not connected to model API, cannot perform detection")
         return None
     
     try:
-        # Read and resize image
-        image = cv2.imread(image_path)
-        if image is None:
-            logger.error(f"Failed to read image at {image_path}")
-            return None
-            
-        # Get original dimensions for scaling boxes later
-        height, width = image.shape[:2]
+        # Read the image
+        with open(image_path, 'rb') as image_file:
+            image_data = image_file.read()
         
-        # Resize image for model input (224x224)
-        image_resized = cv2.resize(image, (224, 224), cv2.INTER_AREA)
-        
-        # Convert image to bytes for TensorFlow input
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
-        image_bytes = cv2.imencode('.jpg', image_resized, encode_param)[1].tobytes()
-        
-        # Run inference
-        detection, scores, boxes, classes = detection_session.run(
-            ['num_detections:0', 'detection_scores:0', 'detection_boxes:0', 'detection_classes:0'],
-            feed_dict={'encoded_image_string_tensor:0': [image_bytes]}
+        # Send image to model API for detection
+        model_url = model_config["model_url"]
+        response = requests.post(
+            model_url,
+            files={'image': ('image.jpg', image_data, 'image/jpeg')},
+            headers={'X-API-Key': 'your_secure_api_key_here'},
+            timeout=30
         )
         
-        # Process results
-        results = []
-        num_detections = int(detection[0])
+        if response.status_code != 200:
+            logger.error(f"Model API returned error status code: {response.status_code}")
+            return None
+            
+        # Parse the response
+        result = response.json()
         
-        for i in range(num_detections):
-            # Only include detections with confidence > 40%
-            if scores[0][i] * 100 > 40:
-                # Get detection class
-                det_class = int(classes[0][i]) - 1  # Adjust for 0-based indexing
-                
-                if det_class < 0 or det_class >= len(object_map):
-                    object_name = f"Object-{det_class+1}"
-                else:
-                    object_name = object_map[det_class]
-                
-                # Get bounding box coordinates
-                box = boxes[0][i]
-                y1, x1, y2, x2 = box
-                
-                # Scale coordinates to original image size
-                y1 = int(y1 * height)
-                x1 = int(x1 * width)
-                y2 = int(y2 * height)
-                x2 = int(x2 * width)
-                
-                # Add detection to results
-                results.append({
-                    'class': object_name,
-                    'confidence': float(scores[0][i] * 100),
-                    'bbox': {
-                        'x1': x1,
-                        'y1': y1,
-                        'x2': x2,
-                        'y2': y2
-                    }
-                })
-        
-        return results
+        # Check if the response has the expected format
+        if 'detections' not in result:
+            logger.error("Model API response does not have 'detections' field")
+            return None
+            
+        return result['detections']
     
     except Exception as e:
-        logger.error(f"Error during weapon detection: {e}")
+        logger.error(f"Error sending image to model API: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return None
@@ -265,8 +218,8 @@ def detect_image():
 def api_status():
     """Check if the API and model are operational."""
     return jsonify({
-        'status': 'operational' if detection_session is not None else 'model_not_loaded',
-        'model_loaded': detection_session is not None,
+        'status': 'operational' if verify_model_connection() else 'model_not_connected',
+        'model_connected': verify_model_connection(),
         'api_version': '1.0.0'
     })
 
@@ -290,6 +243,68 @@ def register_webhook():
         'success': True,
         'message': 'Webhook registered successfully'
     }), 201
+
+# API endpoint to set the model URL
+@detection_api.route('/api/set_model_path', methods=['POST'])
+def set_model_path():
+    """
+    API endpoint to set the model URL.
+    
+    Expects:
+        - JSON with 'model_path' field (which will be treated as the model URL)
+        
+    Returns:
+        JSON with success/error status
+    """
+    data = request.json
+    if not data or 'model_path' not in data:
+        return jsonify({'error': 'No model URL provided'}), 400
+        
+    new_url = data['model_path']
+    
+    # Ensure URL starts with http:// or https://
+    if not (new_url.startswith('http://') or new_url.startswith('https://')):
+        new_url = 'http://' + new_url
+    
+    # Update the model URL
+    model_config["model_url"] = new_url
+    model_config["status"] = "pending"
+    
+    # Attempt to connect to the model API
+    try:
+        if verify_model_connection(new_url):
+            return jsonify({
+                'success': True,
+                'message': f'Successfully connected to model API at {new_url}',
+                'status': model_config["status"]
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to connect to model API at {new_url}',
+                'status': model_config["status"]
+            }), 500
+    except Exception as e:
+        model_config["status"] = "error"
+        return jsonify({
+            'success': False,
+            'message': f'Error connecting to model API: {str(e)}',
+            'status': model_config["status"]
+        }), 500
+
+# API endpoint to get model configuration
+@detection_api.route('/api/model_config', methods=['GET'])
+def get_model_config():
+    """
+    API endpoint to get current model configuration.
+    
+    Returns:
+        JSON with model URL and status
+    """
+    return jsonify({
+        'model_path': model_config["model_url"],  # Keep key as model_path for frontend compatibility
+        'status': model_config["status"]
+    })
 
 # Error handler
 @detection_api.errorhandler(Exception)
