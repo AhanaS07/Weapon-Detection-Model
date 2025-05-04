@@ -88,6 +88,8 @@ def verify_model_connection(model_url=None):
     
     try:
         # Try to connect to the model API (health check)
+        status_url = f"{model_url.rstrip('/')}/status"
+        logger.info(f"Checking status at: {status_url}")
         response = requests.get(f"{model_url.rstrip('/')}/status", timeout=5)
         
         if response.status_code == 200:
@@ -125,15 +127,21 @@ def detect_weapons(image_path):
         
         # Send image to model API for detection
         model_url = model_config["model_url"]
+        detect_url = f"{model_url.rstrip('/')}/api/detect"
+        logger.info(f"Sending detection request to: {detect_url}")
+        
         response = requests.post(
-            model_url,
+            detect_url,
             files={'image': ('image.jpg', image_data, 'image/jpeg')},
             headers={'X-API-Key': 'your_secure_api_key_here'},
             timeout=30
         )
         
+        logger.info(f"Detection response status: {response.status_code}")
+
         if response.status_code != 200:
             logger.error(f"Model API returned error status code: {response.status_code}")
+            logger.error(f"Response content: {response.text}")
             return None
             
         # Parse the response
@@ -142,6 +150,7 @@ def detect_weapons(image_path):
         # Check if the response has the expected format
         if 'detections' not in result:
             logger.error("Model API response does not have 'detections' field")
+            logger.error(f"Response content: {result}")
             return None
             
         return result['detections']
@@ -265,6 +274,9 @@ def set_model_path():
     # Ensure URL starts with http:// or https://
     if not (new_url.startswith('http://') or new_url.startswith('https://')):
         new_url = 'http://' + new_url
+
+    # Ensure that the URL doesn't have double slashes at the end
+    new_url = new_url.rstrip('/')
     
     # Update the model URL
     model_config["model_url"] = new_url
