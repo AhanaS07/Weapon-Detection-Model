@@ -197,16 +197,11 @@ Aborted (core dumped)
 
 Error coming in model_server.py, Solved by manually setting the versions in code 
 
-2025-05-04 14:16:01,678 - __main__ - INFO - Model loaded successfully
-2025-05-04 14:16:01,678 - __main__ - INFO - Starting server on port 8000
- * Serving Flask app 'model_server' (lazy loading)
- * Environment: production
-   WARNING: This is a development server. Do not use it in a production deployment.
-   Use a production WSGI server instead.
- * Debug mode: off
-2025-05-04 14:16:01,683 - werkzeug - WARNING -  * Running on all addresses.
-   WARNING: This is a development server. Do not use it in a production deployment.
-2025-05-04 14:16:01,684 - werkzeug - INFO -  * Running on http://192.168.1.23:8000/ (Press CTRL+C to quit)
-2025-05-04 14:16:35,975 - werkzeug - INFO - 192.168.1.23 - - [04/May/2025 14:16:35] "GET / HTTP/1.1" 404 -
-2025-05-04 14:16:37,712 - werkzeug - INFO - 192.168.1.23 - - [04/May/2025 14:16:37] "GET /favicon.ico HTTP/1.1" 404 -
+# Install ngrok using apt
+curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+| sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \
+&& echo "deb https://ngrok-agent.s3.amazonaws.com buster main" \
+| sudo tee /etc/apt/sources.list.d/ngrok.list \
+&& sudo apt update \
+&& sudo apt install ngrok
 
