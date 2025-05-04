@@ -18,8 +18,6 @@ from io import BytesIO
 processed_images_data = []
 # Flag to use model API instead of static images
 use_model_api = False
-# Video capture for webcam
-video_capture = None
 # Flag to control the camera thread
 camera_running = False
 # Last detection timestamp to avoid too frequent alerts
@@ -70,30 +68,34 @@ def draw_bounding_boxes(image, bboxes, labels, confidences=None):
         
     return image_pil
 
-def camera_thread_function():
-    """Function to capture frames from camera and process them with the model"""
-    global camera_running, video_capture, last_detection_time
+def jetson_camera_thread_function():
+    """
+    Function to get frames from Jetson camera API and process them.
+    This function now connects to the Jetson Nano camera endpoints.
+    """
+    global camera_running, last_detection_time, processed_images_data
     
-    # Initialize camera
-    if video_capture is None:
-        video_capture = cv2.VideoCapture(0)
-        
-    if not video_capture.isOpened():
-        print("Error: Could not open camera.")
+    print("Starting feed from Jetson Nano camera")
+    
+    # Start the Jetson camera
+    try:
+        response = requests.post(
+            'http://localhost:5001/api/camera/start',
+            headers={'X-API-Key': 'your_secure_api_key_here'}
+        )
+        if response.status_code != 200:
+            print(f"Failed to start Jetson camera: {response.status_code}")
+            camera_running = False
+            return
+    except Exception as e:
+        print(f"Error starting Jetson camera: {e}")
         camera_running = False
         return
         
-    print("Camera started successfully")
+    print("Jetson camera started successfully")
     
     while camera_running:
-        # Capture frame
-        ret, frame = video_capture.read()
-        if not ret:
-            print("Failed to capture frame")
-            time.sleep(0.5)
-            continue
-            
-        # Only process every few frames to reduce CPU load
+        # Only process frames at a reasonable interval
         time.sleep(0.2)
         
         # Get current time
@@ -103,69 +105,61 @@ def camera_thread_function():
         if current_time - last_detection_time < min_detection_interval:
             continue
             
-        # Convert frame to JPEG for API request
-        _, buffer = cv2.imencode('.jpg', frame)
-        img_bytes = buffer.tobytes()
-        
-        # Send to detection API
+        # Get frame from Jetson camera
         try:
-            # Get the model API endpoint - use port 5001 since that's what our app runs on
-            response = requests.post(
-                'http://localhost:5001/api/detect',
-                files={'image': ('image.jpg', img_bytes, 'image/jpeg')},
+            response = requests.get(
+                'http://localhost:5001/api/camera/frame',
                 headers={'X-API-Key': 'your_secure_api_key_here'}
             )
             
-            if response.status_code == 200:
-                result = response.json()
+            if response.status_code != 200:
+                print(f"Failed to get frame from Jetson: {response.status_code}")
+                time.sleep(1)  # Wait longer before retrying
+                continue
                 
-                # Check if any weapons were detected
-                if result['detections'] and len(result['detections']) > 0:
-                    # Update detection timestamp
-                    last_detection_time = current_time
-                    
-                    # Extract detection details
-                    bboxes = []
-                    labels = []
-                    confidences = []
-                    
-                    for detection in result['detections']:
-                        bbox = detection['bbox']
-                        bboxes.append((bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2']))
-                        labels.append(detection['class'])
-                        confidences.append(detection['confidence'])
-                    
-                    # Draw boxes on the frame
-                    img_with_boxes = draw_bounding_boxes(frame, bboxes, labels, confidences)
-                    
-                    # Convert back to OpenCV format for saving
-                    img_with_boxes_cv = cv2.cvtColor(np.array(img_with_boxes), cv2.COLOR_RGB2BGR)
-                    
-                    # Save the image
-                    detection_time = time.strftime('%Y%m%d_%H%M%S')
-                    filename = f"detection_{detection_time}.jpg"
-                    output_path = os.path.join('static', 'processed_images', filename)
-                    cv2.imwrite(output_path, img_with_boxes_cv)
-                    
-                    # Create image info for frontend
-                    image_info = {
-                        "file_name": filename,
-                        "view_url": f"/static/processed_images/{filename}",
-                        "date": time.strftime('%Y-%m-%d %H:%M:%S'),
-                        "detections": result['detections']
-                    }
-                    
-                    # Add to processed images
-                    processed_images_data.append(image_info)
-        
-        except Exception as e:
-            print(f"Error in camera thread: {e}")
+            # Process the response
+            result = response.json()
             
-    # Release camera when thread stops
-    if video_capture is not None:
-        video_capture.release()
-        video_capture = None
-    print("Camera thread stopped")
+            # If there are detections in the response
+            if 'detections' in result and len(result['detections']) > 0:
+                # Update detection timestamp
+                last_detection_time = current_time
+                
+                # Convert base64 frame to image
+                frame_data = base64.b64decode(result['frame'])
+                frame_array = np.frombuffer(frame_data, dtype=np.uint8)
+                frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+                
+                # Save the detection image
+                detection_time = time.strftime('%Y%m%d_%H%M%S')
+                filename = f"detection_{detection_time}.jpg"
+                output_path = os.path.join('static', 'processed_images', filename)
+                cv2.imwrite(output_path, frame)
+                
+                # Create image info for frontend
+                image_info = {
+                    "file_name": filename,
+                    "view_url": f"/static/processed_images/{filename}",
+                    "date": time.strftime('%Y-%m-%d %H:%M:%S'),
+                    "detections": result['detections']
+                }
+                
+                # Add to processed images
+                processed_images_data.append(image_info)
+                
+        except Exception as e:
+            print(f"Error in Jetson camera thread: {e}")
+            time.sleep(1)  # Wait longer before retrying
+            
+    # Stop the Jetson camera
+    try:
+        requests.post(
+            'http://localhost:5001/api/camera/stop',
+            headers={'X-API-Key': 'your_secure_api_key_here'}
+        )
+        print("Jetson camera stopped")
+    except Exception as e:
+        print(f"Error stopping Jetson camera: {e}")
 
 def xml_to_csv(path):
     """Converts XML annotations to CSV format for easier processing."""
@@ -245,9 +239,9 @@ def weapon_detection_system():
     processed_images_data = []
     
     if use_model_api:
-        # Start the camera thread for real-time detection
+        # Start the Jetson camera thread for real-time detection
         camera_running = True
-        camera_thread = threading.Thread(target=camera_thread_function)
+        camera_thread = threading.Thread(target=jetson_camera_thread_function)
         camera_thread.daemon = True
         camera_thread.start()
         
