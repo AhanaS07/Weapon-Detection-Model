@@ -194,6 +194,18 @@ def status():
         'device': 'Jetson Nano'
     })
 
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint for basic health check and API info."""
+    return jsonify({
+        'name': 'Weapon Detection Model API',
+        'version': '1.0.0',
+        'endpoints': [
+            '/status - Health check endpoint',
+            '/api/detect - Detection endpoint (POST)'
+        ]
+    })
+
 @app.route('/api/detect', methods=['POST'])
 @api_key_required
 def detect():
