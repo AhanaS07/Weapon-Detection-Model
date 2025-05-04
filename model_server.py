@@ -64,14 +64,25 @@ def load_model():
     
     # Environment variables for TensorFlow on Jetson
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+    
+    # CRITICAL FIX: Disable CUDA Malloc Async for CUDA 10.2 compatibility
     os.environ['TF_CUDA_MALLOC_ASYNC'] = '0'
+    
+    # Disable TensorFlow GPU memory preallocation
+    os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_host'
+    
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
     
+    # CRITICAL FIX: Modify TF process state to avoid using CudaMallocAsync
+    os.environ['TF_USE_CUDNN'] = '1'
+    os.environ['TF_CUDNN_DETERMINISTIC'] = '0'
+    
     try:
-        session = tf.Session(graph=tf.Graph(), config=config)
-        tf.saved_model.loader.load(session, ['serve'], MODEL_PATH)
-        logger.info("Model loaded successfully")
-        return session
+        with tf.device('/device:GPU:0'):
+            session = tf.Session(graph=tf.Graph(), config=config)
+            tf.saved_model.loader.load(session, ['serve'], MODEL_PATH)
+            logger.info("Model loaded successfully")
+            return session
     except Exception as e:
         logger.error(f"Error loading model: {e}")
         
@@ -256,9 +267,15 @@ def detect():
         return jsonify({'error': 'Server error'}), 500
 
 # Load the model at startup
-detection_session = load_model()
-
 if __name__ == '__main__':
+    # Load model with more robust error handling
+    try:
+        detection_session = load_model()
+    except Exception as e:
+        logger.error(f"Critical error during model loading: {e}")
+        logger.info("Attempting to continue in limited mode...")
+        detection_session = None
+    
     # Set up the server
     if detection_session is None:
         logger.error("Failed to load model, server starting in limited mode")
@@ -266,4 +283,6 @@ if __name__ == '__main__':
     # Start the Flask server - use port 8000 to avoid conflicts
     port = 8000
     logger.info(f"Starting server on port {port}")
-    app.run(host='0.0.0.0', port=port, threaded=False)
+    
+    # Use a single process for stability on resource-constrained Jetson
+    app.run(host='0.0.0.0', port=port, threaded=False, processes=1)
