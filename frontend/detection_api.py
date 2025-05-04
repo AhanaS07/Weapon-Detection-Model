@@ -6,7 +6,7 @@ Weapon Detection API
 This module provides a Flask API interface to the weapon detection model.
 It loads the model once at startup and serves predictions via REST API.
 
-Author: akashsingh
+Updated to use the Jetson Nano camera.
 """
 
 import os
@@ -15,7 +15,6 @@ import uuid
 import json
 import logging
 import numpy as np
-import tensorflow.compat.v1 as tf
 import cv2
 from flask import Blueprint, request, jsonify
 from flask_limiter import Limiter
@@ -23,6 +22,7 @@ from flask_limiter.util import get_remote_address
 from functools import wraps
 from werkzeug.utils import secure_filename
 import requests
+import base64
 
 # Configure logging
 logging.basicConfig(
@@ -42,7 +42,7 @@ detection_api = Blueprint('detection_api', __name__)
 object_map = ["knife", "gun"]
 
 # Default model URL (will be updated via API)
-DEFAULT_MODEL_URL = "http://localhost:8000/api/detect"
+DEFAULT_MODEL_URL = "http://localhost:8000"
 # Store the model URL and status - will be updated via API
 model_config = {
     "model_url": DEFAULT_MODEL_URL,
@@ -90,7 +90,7 @@ def verify_model_connection(model_url=None):
         # Try to connect to the model API (health check)
         status_url = f"{model_url.rstrip('/')}/status"
         logger.info(f"Checking status at: {status_url}")
-        response = requests.get(f"{model_url.rstrip('/')}/status", timeout=5)
+        response = requests.get(status_url, timeout=5)
         
         if response.status_code == 200:
             logger.info("Successfully connected to model API")
@@ -104,6 +104,113 @@ def verify_model_connection(model_url=None):
         logger.error(f"Failed to connect to model API: {e}")
         model_config["status"] = "error_connection"
         return False
+
+# Function to start the camera on the Jetson Nano
+def start_jetson_camera():
+    """Start the camera on the Jetson Nano.
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    if model_config["status"] != "connected":
+        logger.error("Not connected to model API, cannot start camera")
+        return False
+    
+    try:
+        model_url = model_config["model_url"]
+        camera_url = f"{model_url.rstrip('/')}/camera/start"
+        
+        logger.info(f"Starting camera on Jetson at: {camera_url}")
+        
+        response = requests.post(
+            camera_url,
+            headers={'X-API-Key': 'your_secure_api_key_here'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info("Successfully started Jetson camera")
+            return True
+        else:
+            logger.error(f"Failed to start Jetson camera: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Error starting Jetson camera: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
+# Function to stop the camera on the Jetson Nano
+def stop_jetson_camera():
+    """Stop the camera on the Jetson Nano.
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    if model_config["status"] != "connected":
+        logger.error("Not connected to model API, cannot stop camera")
+        return False
+    
+    try:
+        model_url = model_config["model_url"]
+        camera_url = f"{model_url.rstrip('/')}/camera/stop"
+        
+        logger.info(f"Stopping camera on Jetson at: {camera_url}")
+        
+        response = requests.post(
+            camera_url,
+            headers={'X-API-Key': 'your_secure_api_key_here'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info("Successfully stopped Jetson camera")
+            return True
+        else:
+            logger.error(f"Failed to stop Jetson camera: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Error stopping Jetson camera: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
+# Function to get a frame from the Jetson Nano camera
+def get_jetson_frame():
+    """Get the latest frame from the Jetson camera with detections.
+    
+    Returns:
+        JSON response with frame and detections if successful, None otherwise
+    """
+    if model_config["status"] != "connected":
+        logger.error("Not connected to model API, cannot get frame")
+        return None
+    
+    try:
+        model_url = model_config["model_url"]
+        frame_url = f"{model_url.rstrip('/')}/camera/frame"
+        
+        logger.info(f"Getting frame from Jetson at: {frame_url}")
+        
+        response = requests.get(
+            frame_url,
+            headers={'X-API-Key': 'your_secure_api_key_here'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"Failed to get frame from Jetson: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"Error getting frame from Jetson: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return None
 
 # Process image through remote model API
 def detect_weapons(image_path):
@@ -160,6 +267,16 @@ def detect_weapons(image_path):
         import traceback
         logger.error(traceback.format_exc())
         return None
+
+# API endpoint for status/health check
+@detection_api.route('/api/status', methods=['GET'])
+def api_status():
+    """Check if the API and model are operational."""
+    return jsonify({
+        'status': 'operational' if verify_model_connection() else 'model_not_connected',
+        'model_connected': verify_model_connection(),
+        'api_version': '1.0.0'
+    })
 
 # API endpoint for image detection
 @detection_api.route('/api/detect', methods=['POST'])
@@ -221,37 +338,6 @@ def detect_image():
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'error': 'Server error processing image'}), 500
-
-# API endpoint for status/health check
-@detection_api.route('/api/status', methods=['GET'])
-def api_status():
-    """Check if the API and model are operational."""
-    return jsonify({
-        'status': 'operational' if verify_model_connection() else 'model_not_connected',
-        'model_connected': verify_model_connection(),
-        'api_version': '1.0.0'
-    })
-
-# Webhook endpoint for notifications
-@detection_api.route('/api/webhook/register', methods=['POST'])
-@api_key_required
-def register_webhook():
-    """Register a webhook URL to receive notifications for positive detections."""
-    if not request.is_json:
-        return jsonify({'error': 'Content type must be application/json'}), 400
-        
-    data = request.get_json()
-    if 'webhook_url' not in data:
-        return jsonify({'error': 'webhook_url is required'}), 400
-        
-    # In a real implementation, you would store this webhook URL in a database
-    # For this example, we'll just acknowledge receipt
-    logger.info(f"Webhook URL registered: {data['webhook_url']}")
-    
-    return jsonify({
-        'success': True,
-        'message': 'Webhook registered successfully'
-    }), 201
 
 # API endpoint to set the model URL
 @detection_api.route('/api/set_model_path', methods=['POST'])
@@ -318,6 +404,34 @@ def get_model_config():
         'status': model_config["status"]
     })
 
+# Jetson camera control endpoints
+@detection_api.route('/api/camera/start', methods=['POST'])
+@api_key_required
+def api_start_camera():
+    """API endpoint to start the Jetson camera."""
+    if start_jetson_camera():
+        return jsonify({'success': True, 'message': 'Camera started successfully'})
+    return jsonify({'error': 'Failed to start camera'}), 500
+
+@detection_api.route('/api/camera/stop', methods=['POST'])
+@api_key_required
+def api_stop_camera():
+    """API endpoint to stop the Jetson camera."""
+    if stop_jetson_camera():
+        return jsonify({'success': True, 'message': 'Camera stopped successfully'})
+    return jsonify({'error': 'Failed to stop camera'}), 500
+
+@detection_api.route('/api/camera/frame', methods=['GET'])
+@api_key_required
+def api_get_frame():
+    """API endpoint to get the latest frame from the Jetson camera."""
+    result = get_jetson_frame()
+    
+    if result is None:
+        return jsonify({'error': 'Failed to get frame from Jetson camera'}), 500
+        
+    return jsonify(result)
+
 # Error handler
 @detection_api.errorhandler(Exception)
 def handle_exception(e):
@@ -326,4 +440,4 @@ def handle_exception(e):
     return jsonify({
         'error': 'An unexpected error occurred',
         'message': str(e)
-    }), 500 
+    }), 500
