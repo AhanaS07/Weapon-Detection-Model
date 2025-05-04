@@ -9,3 +9,4 @@ bkp/
 annotations.csv
 
 .ipynb_checkpoints
+*.log
