@@ -197,15 +197,5 @@ Aborted (core dumped)
 
 Error coming in model_server.py, Solved by manually setting the versions in code 
 
-@app.route('/', methods=['GET'])
-def root():
-    """Root endpoint for basic health check and API info."""
-    return jsonify({
-        'name': 'Weapon Detection Model API',
-        'version': '1.0.0',
-        'endpoints': [
-            '/status - Health check endpoint',
-            '/api/detect - Detection endpoint (POST)'
-        ]
-    })
+
 
