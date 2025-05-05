@@ -49,6 +49,13 @@ model_config = {
     "status": "not_connected"
 }
 
+# Try to verify the connection to the model at startup
+try:
+    logger.info("Verifying connection to model at startup")
+    verify_model_connection()
+except Exception as e:
+    logger.error(f"Failed to connect to model at startup: {e}")
+
 # Directory to save uploaded images
 UPLOAD_FOLDER = os.path.join('static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)

@@ -6,6 +6,27 @@
     <title>Live Image Feed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+        // Audio control variables
+        let alarmSound;
+        let alarmTimeout;
+
+        // Function to play alarm sound for 2 seconds
+        function playAlarmSound() {
+            // If there's an existing timeout, clear it
+            if (alarmTimeout) {
+                clearTimeout(alarmTimeout);
+            }
+            
+            // Play the sound
+            alarmSound.currentTime = 0;
+            alarmSound.play();
+            
+            // Set timeout to stop after 2 seconds
+            alarmTimeout = setTimeout(() => {
+                alarmSound.pause();
+            }, 2000);
+        }
+
         function updateLiveFeed(event) {
             const processedImage = JSON.parse(event.data);
             const imageContainer = document.getElementById('live-feed');
@@ -25,13 +46,29 @@
                 <td class="py-3 px-6 text-sm font-medium text-gray-500 whitespace-nowrap">${processedImage.date}</td>
             `;
             tableBody.appendChild(newRow);
+            
+            // If this detection should trigger an alarm, play the sound
+            if (processedImage.play_alarm) {
+                playAlarmSound();
+            }
         }
 
-        const eventSource = new EventSource('/stream');
-        eventSource.onmessage = updateLiveFeed;
+        // Initialize when the page loads
+        window.onload = function() {
+            // Initialize the alarm sound
+            alarmSound = new Audio('/static/sounds/alarm.mp3');
+            alarmSound.preload = 'auto';
+            
+            // Set up the event source
+            const eventSource = new EventSource('/stream');
+            eventSource.onmessage = updateLiveFeed;
+        };
     </script>
 </head>
 <body class="bg-blue-100 h-screen">
+    <!-- Hidden audio element for the alarm sound -->
+    <audio id="alarm-sound" src="/static/sounds/alarm.mp3" preload="auto"></audio>
+    
     <!-- Header -->
     <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
         <h1 class="text-2xl font-bold">Safe Sight: Weapon Detection System</h1>

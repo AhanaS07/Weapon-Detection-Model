@@ -13,6 +13,11 @@ import threading
 import base64
 import numpy as np
 from io import BytesIO
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # A global list to store processed image data (to simulate the live feed)
 processed_images_data = []
@@ -24,6 +29,27 @@ camera_running = False
 last_detection_time = 0
 # Minimum time between detections (seconds)
 min_detection_interval = 2
+# Base API URL - will be updated with current config
+model_api_url = "http://localhost:5001"
+# Last alarm sound time - for controlling alarm frequency
+last_alarm_time = 0
+# Minimum time between alarm sounds (seconds)
+alarm_cooldown = 10
+
+def get_current_model_config():
+    """Get the current model configuration from the API"""
+    try:
+        response = requests.get(f"{model_api_url}/api/model_config")
+        if response.status_code == 200:
+            config = response.json()
+            logger.info(f"Retrieved model config: {config}")
+            return config
+        else:
+            logger.error(f"Failed to get model config: {response.status_code}")
+            return None
+    except Exception as e:
+        logger.error(f"Error getting model config: {e}")
+        return None
 
 def set_use_model_api(value):
     """Set whether to use the model API or static images"""
@@ -73,14 +99,23 @@ def jetson_camera_thread_function():
     Function to get frames from Jetson camera API and process them.
     This function now connects to the Jetson Nano camera endpoints.
     """
-    global camera_running, last_detection_time, processed_images_data
+    global camera_running, last_detection_time, processed_images_data, last_alarm_time
     
     print("Starting feed from Jetson Nano camera")
+    
+    # Get current model configuration
+    config = get_current_model_config()
+    if config and 'model_path' in config:
+        model_url = config['model_path']
+        print(f"Using model at: {model_url}")
+    else:
+        print("Could not get model configuration, using default")
+        model_url = "http://localhost:8000"
     
     # Start the Jetson camera
     try:
         response = requests.post(
-            'http://localhost:5001/api/camera/start',
+            f"{model_url.rstrip('/')}/camera/start",
             headers={'X-API-Key': 'your_secure_api_key_here'}
         )
         if response.status_code != 200:
@@ -108,7 +143,7 @@ def jetson_camera_thread_function():
         # Get frame from Jetson camera
         try:
             response = requests.get(
-                'http://localhost:5001/api/camera/frame',
+                f"{model_url.rstrip('/')}/camera/frame",
                 headers={'X-API-Key': 'your_secure_api_key_here'}
             )
             
@@ -136,12 +171,19 @@ def jetson_camera_thread_function():
                 output_path = os.path.join('static', 'processed_images', filename)
                 cv2.imwrite(output_path, frame)
                 
+                # Determine if we should play an alarm sound
+                should_play_alarm = False
+                if current_time - last_alarm_time >= alarm_cooldown:
+                    should_play_alarm = True
+                    last_alarm_time = current_time
+                
                 # Create image info for frontend
                 image_info = {
                     "file_name": filename,
                     "view_url": f"/static/processed_images/{filename}",
                     "date": time.strftime('%Y-%m-%d %H:%M:%S'),
-                    "detections": result['detections']
+                    "detections": result['detections'],
+                    "play_alarm": should_play_alarm
                 }
                 
                 # Add to processed images
@@ -154,7 +196,7 @@ def jetson_camera_thread_function():
     # Stop the Jetson camera
     try:
         requests.post(
-            'http://localhost:5001/api/camera/stop',
+            f"{model_url.rstrip('/')}/camera/stop",
             headers={'X-API-Key': 'your_secure_api_key_here'}
         )
         print("Jetson camera stopped")

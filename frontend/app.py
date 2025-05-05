@@ -67,6 +67,19 @@ def model_config():
         return redirect(url_for('login'))
     return render_template('model_config.html')
 
+@app.route('/api/model_config', methods=['POST'])
+def update_model_config():
+    """Update model configuration with submitted values."""
+    if not session.get("logged_in"):
+        return jsonify({"status": "error", "message": "Not authenticated"}), 401
+    
+    data = request.json
+    if 'model_url' not in data:
+        return jsonify({"status": "error", "message": "Model URL is required"}), 400
+    
+    # Forward the request to the detection API
+    return redirect(url_for('detection_api.set_model_path'))
+
 @app.route('/detect-weapons')
 def detect_weapons_page():
     """Renders the weapon detection page for manual image uploads."""
