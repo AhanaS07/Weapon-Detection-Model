@@ -58,6 +58,6 @@ Usage:
 - If a weapon is detected, an alarm can be triggered and notifications can be sent.
 
 # Key Technologies Used
-Backend: TensorFlow, Flask, OpenCV, NumPy, threading, REST APIs.
-Frontend: Flask, HTML/CSS (Bootstrap), JavaScript.
-Deployment: Docker support, Jetson Nano optimization.
+- Backend: TensorFlow, Flask, OpenCV, NumPy, threading, REST APIs.
+- Frontend: Flask, HTML/CSS (Bootstrap), JavaScript.
+- Deployment: Docker support, Jetson Nano optimization.
